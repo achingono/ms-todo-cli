@@ -3,8 +3,16 @@ import { Command } from 'commander';
 import { handleAuthLogin, handleAuthStatus, handleAuthLogout, handleAuthPrintAccount } from './auth';
 import { handleListCreate, handleListList } from './commands/list';
 import { handleTaskCreate, handleTaskUpdate, handleTaskComplete, handleTaskList, handleTaskGet } from './commands/task';
+import { printError } from './output';
+import { ErrorCodes } from './errors';
 
 const program = new Command();
+
+// Override Commander error output to always emit JSON
+program.exitOverride();
+program.configureOutput({
+  writeErr: () => { /* suppress Commander's default stderr */ },
+});
 
 program
   .name('ms-todo-cli')
@@ -100,4 +108,19 @@ program
   .requiredOption('--task-id <id>', 'Task ID')
   .action((opts) => handleTaskGet(opts.taskId));
 
-program.parse(process.argv);
+try {
+  program.parse(process.argv);
+} catch (err: unknown) {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const ce = err as { code: string; message: string };
+    if (ce.code === 'commander.missingMandatoryOptionValue' || ce.code === 'commander.optionMissingArgument') {
+      printError(ErrorCodes.VALIDATION_ERROR, ce.message);
+    } else if (ce.code === 'commander.helpDisplayed' || ce.code === 'commander.version') {
+      process.exit(0);
+    } else {
+      printError(ErrorCodes.VALIDATION_ERROR, ce.message);
+    }
+  } else {
+    printError(ErrorCodes.VALIDATION_ERROR, String(err));
+  }
+}
