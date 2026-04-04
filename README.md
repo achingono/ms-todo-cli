@@ -188,4 +188,3 @@ npm run lint    # Lint source files
 ## License
 
 MIT
-OpenClaw CLI client for Microsoft Todo
