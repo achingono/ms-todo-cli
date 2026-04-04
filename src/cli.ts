@@ -9,9 +9,10 @@ import { ErrorCodes } from './errors';
 
 const program = new Command();
 
-// Override Commander error output to always emit JSON
+// Override Commander output to always emit JSON — suppress both stdout and stderr
 program.exitOverride();
 program.configureOutput({
+  writeOut: () => { /* suppress Commander's default stdout (help/version text) */ },
   writeErr: () => { /* suppress Commander's default stderr */ },
 });
 
@@ -51,6 +52,7 @@ taskCmd
   .command('update')
   .description('Update a task')
   .option('--task-id <id>', 'Task ID')
+  .option('--list-id <id>', 'List ID (skips list scan when provided)')
   .option('--title <title>', 'New title')
   .option('--notes <notes>', 'New notes')
   .option('--due <date>', 'Due date (ISO 8601)')
@@ -63,7 +65,8 @@ taskCmd
   .command('complete')
   .description('Mark a task as complete')
   .requiredOption('--task-id <id>', 'Task ID')
-  .action((opts) => handleTaskComplete(opts.taskId));
+  .option('--list-id <id>', 'List ID (skips list scan when provided)')
+  .action((opts) => handleTaskComplete(opts.taskId, opts.listId));
 
 taskCmd
   .command('list')
@@ -76,7 +79,8 @@ taskCmd
   .command('get')
   .description('Get a single task')
   .requiredOption('--task-id <id>', 'Task ID')
-  .action((opts) => handleTaskGet(opts.taskId));
+  .option('--list-id <id>', 'List ID (skips list scan when provided)')
+  .action((opts) => handleTaskGet(opts.taskId, opts.listId));
 
 // Step commands (task checklist items)
 const stepCmd = program.command('step').description('Task step (checklist item) commands');
@@ -133,6 +137,7 @@ program
   .command('update')
   .description('Update a task (alias for task update)')
   .option('--task-id <id>', 'Task ID')
+  .option('--list-id <id>', 'List ID (skips list scan when provided)')
   .option('--title <title>', 'New title')
   .option('--notes <notes>', 'New notes')
   .option('--due <date>', 'Due date (ISO 8601)')
@@ -145,7 +150,8 @@ program
   .command('get')
   .description('Get a single task (alias for task get)')
   .requiredOption('--task-id <id>', 'Task ID')
-  .action((opts) => handleTaskGet(opts.taskId));
+  .option('--list-id <id>', 'List ID (skips list scan when provided)')
+  .action((opts) => handleTaskGet(opts.taskId, opts.listId));
 
 try {
   program.parse(process.argv);

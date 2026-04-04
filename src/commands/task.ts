@@ -15,11 +15,12 @@ interface TaskCreateOptions {
 
 interface TaskUpdateOptions {
   taskId?: string;
+  listId?: string;
   title?: string;
   notes?: string;
   due?: string;
   priority?: string;
-  completed?: string;
+  completed?: string | boolean;
   stdin?: boolean;
 }
 
@@ -46,6 +47,18 @@ function priorityToImportance(priority?: string): string | undefined {
     case 'normal': return 'normal';
     default: return undefined;
   }
+}
+
+export function validateTaskCreate(opts: { title?: string; due?: string }): string | null {
+  if (!opts.title) return 'title is required';
+  if (opts.due && isNaN(new Date(opts.due).getTime())) return 'dueDateTime must be a valid ISO 8601 date';
+  return null;
+}
+
+export function validateTaskUpdate(opts: { taskId?: string; due?: string }): string | null {
+  if (!opts.taskId) return 'task-id is required';
+  if (opts.due && isNaN(new Date(opts.due).getTime())) return 'dueDateTime must be a valid ISO 8601 date';
+  return null;
 }
 
 export async function handleTaskCreate(options: TaskCreateOptions): Promise<void> {
@@ -130,7 +143,7 @@ export async function handleTaskUpdate(options: TaskUpdateOptions): Promise<void
       return;
     }
 
-    const found = await graph.findTaskById(merged.taskId);
+    const found = await graph.findTaskById(merged.taskId, merged.listId);
     if (!found) {
       printError(ErrorCodes.TASK_NOT_FOUND, `Task not found: ${merged.taskId}`);
       return;
@@ -149,9 +162,10 @@ export async function handleTaskUpdate(options: TaskUpdateOptions): Promise<void
     }
     const importance = priorityToImportance(merged.priority);
     if (importance) updates['importance'] = importance;
-    if (merged.completed === 'true') {
+    const completedValue = merged.completed;
+    if (completedValue === 'true' || completedValue === true) {
       updates['status'] = 'completed';
-    } else if (merged.completed === 'false') {
+    } else if (completedValue === 'false' || completedValue === false) {
       updates['status'] = 'notStarted';
     }
 
@@ -163,13 +177,13 @@ export async function handleTaskUpdate(options: TaskUpdateOptions): Promise<void
   }
 }
 
-export async function handleTaskComplete(taskId: string): Promise<void> {
+export async function handleTaskComplete(taskId: string, listId?: string): Promise<void> {
   try {
     if (!taskId) {
       printError(ErrorCodes.VALIDATION_ERROR, 'task-id is required');
       return;
     }
-    const found = await graph.findTaskById(taskId);
+    const found = await graph.findTaskById(taskId, listId);
     if (!found) {
       printError(ErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
       return;
@@ -205,13 +219,13 @@ export async function handleTaskList(listName: string, options: { listId?: strin
   }
 }
 
-export async function handleTaskGet(taskId: string): Promise<void> {
+export async function handleTaskGet(taskId: string, listId?: string): Promise<void> {
   try {
     if (!taskId) {
       printError(ErrorCodes.VALIDATION_ERROR, 'task-id is required');
       return;
     }
-    const found = await graph.findTaskById(taskId);
+    const found = await graph.findTaskById(taskId, listId);
     if (!found) {
       printError(ErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
       return;

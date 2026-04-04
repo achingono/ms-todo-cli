@@ -20,7 +20,15 @@ function createClient(): AxiosInstance {
       const status = err.response?.status;
       if (status === 429) throw new AppError(ErrorCodes.RATE_LIMITED, 'Rate limited by Microsoft Graph API');
       if (status === 401 || status === 403) throw new AppError(ErrorCodes.AUTH_EXPIRED, 'Authentication expired or invalid');
-      if (status === 404) throw new AppError(ErrorCodes.TASK_NOT_FOUND, 'Resource not found');
+      if (status === 404) {
+        // Determine whether the missing resource is a list or a task by examining the URL.
+        // Paths ending at /lists/{id} or /lists/{id}/tasks (no task segment) are list-level 404s.
+        const url: string = err.config?.url || '';
+        if (/\/lists\/[^/]+(?:\/tasks)?$/.test(url)) {
+          throw new AppError(ErrorCodes.LIST_NOT_FOUND, 'List not found');
+        }
+        throw new AppError(ErrorCodes.TASK_NOT_FOUND, 'Resource not found');
+      }
       throw new AppError(ErrorCodes.GRAPH_ERROR, err.response?.data?.error?.message || err.message);
     }
   );
@@ -101,7 +109,16 @@ export async function deleteTask(listId: string, taskId: string): Promise<void> 
   await client.delete(`/me/todo/lists/${listId}/tasks/${taskId}`);
 }
 
-export async function findTaskById(taskId: string): Promise<{ task: TodoTask; listId: string } | null> {
+export async function findTaskById(taskId: string, listId?: string): Promise<{ task: TodoTask; listId: string } | null> {
+  if (listId) {
+    try {
+      const task = await getTask(listId, taskId);
+      return { task, listId };
+    } catch (err) {
+      if (err instanceof AppError && err.code === ErrorCodes.TASK_NOT_FOUND) return null;
+      throw err;
+    }
+  }
   const lists = await getLists();
   for (const list of lists) {
     try {

@@ -1,21 +1,6 @@
-// Inline validation logic tests - no complex imports
+// Validation tests exercise the real production validators exported from src/commands/task.ts
 
-function isValidISODate(dateStr: string): boolean {
-  const d = new Date(dateStr);
-  return !isNaN(d.getTime());
-}
-
-function validateTaskCreate(opts: { title?: string; due?: string }): string | null {
-  if (!opts.title) return 'title is required';
-  if (opts.due && !isValidISODate(opts.due)) return 'dueDateTime must be a valid ISO 8601 date';
-  return null;
-}
-
-function validateTaskUpdate(opts: { taskId?: string; due?: string }): string | null {
-  if (!opts.taskId) return 'task-id is required';
-  if (opts.due && !isValidISODate(opts.due)) return 'dueDateTime must be a valid ISO 8601 date';
-  return null;
-}
+import { validateTaskCreate, validateTaskUpdate } from '../src/commands/task';
 
 describe('validateTaskCreate', () => {
   test('returns error if title is missing', () => {

@@ -5,24 +5,24 @@ import * as path from 'path';
 import * as os from 'os';
 import { ErrorCodes, AppError } from '../errors';
 
-let keytar: typeof import('keytar') | null = null;
-try {
-  keytar = require('keytar');
-} catch {
-  keytar = null;
-}
-
-const CLIENT_ID = process.env.MS_TODO_CLIENT_ID || 'YOUR_CLIENT_ID_HERE';
 const SCOPES = ['Tasks.ReadWrite', 'User.Read', 'offline_access'];
-const KEYTAR_SERVICE = 'ms-todo-cli';
-const KEYTAR_ACCOUNT = 'refresh-token';
 const CONFIG_DIR = path.join(os.homedir(), '.ms-todo-cli');
-const TOKEN_FILE = path.join(CONFIG_DIR, 'tokens.json');
 const MSAL_CACHE_FILE = path.join(CONFIG_DIR, 'msal-cache.json');
+
+function getClientId(): string {
+  const clientId = process.env.MS_TODO_CLIENT_ID;
+  if (!clientId) {
+    throw new AppError(
+      ErrorCodes.VALIDATION_ERROR,
+      'MS_TODO_CLIENT_ID environment variable is not set. Register an Azure app and set this variable to its client ID.',
+    );
+  }
+  return clientId;
+}
 
 function ensureConfigDir(): void {
   if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -58,7 +58,7 @@ class FileTokenCache implements msal.ISerializableTokenCache {
   async afterCacheAccess(cacheContext: msal.TokenCacheContext): Promise<void> {
     if (cacheContext.cacheHasChanged) {
       ensureConfigDir();
-      fs.writeFileSync(this.filePath, cacheContext.tokenCache.serialize());
+      fs.writeFileSync(this.filePath, cacheContext.tokenCache.serialize(), { mode: 0o600 });
     }
   }
 }
@@ -67,7 +67,7 @@ function createPca(): msal.PublicClientApplication {
   const cachePlugin = new FileTokenCache(MSAL_CACHE_FILE);
   const config: msal.Configuration = {
     auth: {
-      clientId: CLIENT_ID,
+      clientId: getClientId(),
       authority: 'https://login.microsoftonline.com/common',
     },
     cache: {
@@ -88,12 +88,6 @@ export async function login(): Promise<void> {
   const result = await pca.acquireTokenByDeviceCode(deviceCodeRequest);
   if (!result) {
     throw new AppError(ErrorCodes.AUTH_REQUIRED, 'Login failed: no token returned');
-  }
-  if (keytar) {
-    await keytar.setPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT, result.account?.homeAccountId || '');
-  } else {
-    ensureConfigDir();
-    fs.writeFileSync(TOKEN_FILE, JSON.stringify({ homeAccountId: result.account?.homeAccountId }));
   }
 }
 
@@ -120,14 +114,8 @@ export async function getAccessToken(): Promise<string> {
 }
 
 export async function logout(): Promise<void> {
-  if (keytar) {
-    await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT);
-  }
   if (fs.existsSync(MSAL_CACHE_FILE)) {
     fs.unlinkSync(MSAL_CACHE_FILE);
-  }
-  if (fs.existsSync(TOKEN_FILE)) {
-    fs.unlinkSync(TOKEN_FILE);
   }
 }
 

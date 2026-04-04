@@ -9,7 +9,7 @@ A command-line interface for Microsoft To Do, built with TypeScript and Node.js.
 - Manage tasks (create, update, complete, list, get)
 - Manage task steps / checklist items (create, update, complete, delete, list)
 - JSON output for easy scripting and integration
-- Secure token storage via keytar (with file fallback)
+- MSAL token cache stored in `~/.ms-todo-cli/msal-cache.json` (mode 0o600)
 
 ## Installation
 
@@ -46,9 +46,9 @@ To use this CLI, you need to register an application in Azure Active Directory:
 
 ## Environment Variables
 
-| Variable | Description | Default |
+| Variable | Description | Required |
 |---|---|---|
-| `MS_TODO_CLIENT_ID` | Azure app client ID | `YOUR_CLIENT_ID_HERE` |
+| `MS_TODO_CLIENT_ID` | Azure app client ID | **Yes** — the CLI will fail fast if not set |
 
 Set your client ID before using:
 
@@ -118,12 +118,16 @@ echo '{"title":"Buy eggs","list":"Shopping"}' | ms-todo-cli task create --stdin
 ```bash
 ms-todo-cli task update --task-id "TASK_ID" --title "Buy oat milk"
 ms-todo-cli task update --task-id "TASK_ID" --completed true
+# Provide --list-id to skip the O(N) list scan:
+ms-todo-cli task update --task-id "TASK_ID" --list-id "LIST_ID" --title "Buy oat milk"
 ```
 
 ### Complete a task
 
 ```bash
 ms-todo-cli task complete --task-id "TASK_ID"
+# Provide --list-id to skip the O(N) list scan:
+ms-todo-cli task complete --task-id "TASK_ID" --list-id "LIST_ID"
 ```
 
 ### List tasks in a list
@@ -137,6 +141,8 @@ ms-todo-cli task list --list-id "LIST_ID"
 
 ```bash
 ms-todo-cli task get --task-id "TASK_ID"
+# Provide --list-id to skip the O(N) list scan:
+ms-todo-cli task get --task-id "TASK_ID" --list-id "LIST_ID"
 ```
 
 ## Task Step Commands
