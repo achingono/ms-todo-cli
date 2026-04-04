@@ -7,6 +7,7 @@ A command-line interface for Microsoft To Do, built with TypeScript and Node.js.
 - OAuth authentication via Microsoft device code flow
 - Manage todo lists (create, list)
 - Manage tasks (create, update, complete, list, get)
+- Manage task steps / checklist items (create, update, complete, delete, list)
 - JSON output for easy scripting and integration
 - Secure token storage via keytar (with file fallback)
 
@@ -136,6 +137,40 @@ ms-todo-cli task list --list-id "LIST_ID"
 
 ```bash
 ms-todo-cli task get --task-id "TASK_ID"
+```
+
+## Task Step Commands
+
+Microsoft To Do supports checklist items (steps) within a task.
+
+### List steps for a task
+
+```bash
+ms-todo-cli step list --task-id "TASK_ID"
+```
+
+### Create a step
+
+```bash
+ms-todo-cli step create --task-id "TASK_ID" --title "Sub-task title"
+```
+
+### Update a step title
+
+```bash
+ms-todo-cli step update --task-id "TASK_ID" --step-id "STEP_ID" --title "New title"
+```
+
+### Complete a step
+
+```bash
+ms-todo-cli step complete --task-id "TASK_ID" --step-id "STEP_ID"
+```
+
+### Delete a step
+
+```bash
+ms-todo-cli step delete --task-id "TASK_ID" --step-id "STEP_ID"
 ```
 
 ## Short-form Aliases

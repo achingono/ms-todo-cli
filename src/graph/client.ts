@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { getAccessToken } from '../auth/authManager';
 import { ErrorCodes, AppError } from '../errors';
-import { TodoTask, TodoList } from '../schema/types';
+import { TodoTask, TodoList, ChecklistItem } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
 
@@ -113,4 +113,45 @@ export async function findTaskById(taskId: string): Promise<{ task: TodoTask; li
     }
   }
   return null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapChecklistItem(item: any): ChecklistItem {
+  return {
+    id: item.id,
+    displayName: item.displayName,
+    isChecked: item.isChecked ?? false,
+    checkedDateTime: item.checkedDateTime,
+  };
+}
+
+export async function getChecklistItems(listId: string, taskId: string): Promise<ChecklistItem[]> {
+  const client = createClient();
+  const res = await client.get(`/me/todo/lists/${listId}/tasks/${taskId}/checklistItems`);
+  return (res.data.value || []).map(mapChecklistItem);
+}
+
+export async function createChecklistItem(listId: string, taskId: string, displayName: string): Promise<ChecklistItem> {
+  const client = createClient();
+  const res = await client.post(`/me/todo/lists/${listId}/tasks/${taskId}/checklistItems`, { displayName });
+  return mapChecklistItem(res.data);
+}
+
+export async function updateChecklistItem(
+  listId: string,
+  taskId: string,
+  checklistItemId: string,
+  updates: { displayName?: string; isChecked?: boolean },
+): Promise<ChecklistItem> {
+  const client = createClient();
+  const res = await client.patch(
+    `/me/todo/lists/${listId}/tasks/${taskId}/checklistItems/${checklistItemId}`,
+    updates,
+  );
+  return mapChecklistItem(res.data);
+}
+
+export async function deleteChecklistItem(listId: string, taskId: string, checklistItemId: string): Promise<void> {
+  const client = createClient();
+  await client.delete(`/me/todo/lists/${listId}/tasks/${taskId}/checklistItems/${checklistItemId}`);
 }

@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { handleAuthLogin, handleAuthStatus, handleAuthLogout, handleAuthPrintAccount } from './auth';
 import { handleListCreate, handleListList } from './commands/list';
 import { handleTaskCreate, handleTaskUpdate, handleTaskComplete, handleTaskList, handleTaskGet } from './commands/task';
+import { handleStepList, handleStepCreate, handleStepUpdate, handleStepComplete, handleStepDelete } from './commands/step';
 import { printError } from './output';
 import { ErrorCodes } from './errors';
 
@@ -76,6 +77,44 @@ taskCmd
   .description('Get a single task')
   .requiredOption('--task-id <id>', 'Task ID')
   .action((opts) => handleTaskGet(opts.taskId));
+
+// Step commands (task checklist items)
+const stepCmd = program.command('step').description('Task step (checklist item) commands');
+
+stepCmd
+  .command('list')
+  .description('List steps for a task')
+  .requiredOption('--task-id <id>', 'Task ID')
+  .action((opts) => handleStepList(opts.taskId));
+
+stepCmd
+  .command('create')
+  .description('Create a step for a task')
+  .requiredOption('--task-id <id>', 'Task ID')
+  .requiredOption('--title <title>', 'Step title')
+  .action((opts) => handleStepCreate(opts.taskId, opts.title));
+
+stepCmd
+  .command('update')
+  .description('Update a step')
+  .requiredOption('--task-id <id>', 'Task ID')
+  .requiredOption('--step-id <id>', 'Step ID')
+  .option('--title <title>', 'New step title')
+  .action((opts) => handleStepUpdate(opts.taskId, opts.stepId, { title: opts.title }));
+
+stepCmd
+  .command('complete')
+  .description('Mark a step as complete')
+  .requiredOption('--task-id <id>', 'Task ID')
+  .requiredOption('--step-id <id>', 'Step ID')
+  .action((opts) => handleStepComplete(opts.taskId, opts.stepId));
+
+stepCmd
+  .command('delete')
+  .description('Delete a step')
+  .requiredOption('--task-id <id>', 'Task ID')
+  .requiredOption('--step-id <id>', 'Step ID')
+  .action((opts) => handleStepDelete(opts.taskId, opts.stepId));
 
 // Short-form aliases
 program

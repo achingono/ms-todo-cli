@@ -1,3 +1,10 @@
+export interface ChecklistItem {
+  id: string;
+  displayName: string;
+  isChecked: boolean;
+  checkedDateTime?: string;
+}
+
 export interface TodoTask {
   id: string;
   title?: string;
@@ -8,6 +15,7 @@ export interface TodoTask {
   dueDateTime?: string;
   priority?: string;
   completedDateTime?: string;
+  steps?: ChecklistItem[];
 }
 
 export interface TodoList {
