@@ -1,0 +1,52 @@
+name: Build and Package
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Create artifact
+        run: |
+          npm prune --omit=dev
+          tar -czf ms-todo-cli-${{ matrix.os }}.tar.gz dist node_modules package.json package-lock.json README.md LICENSE
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ms-todo-cli-${{ matrix.os }}
+          path: ms-todo-cli-${{ matrix.os }}.tar.gz
