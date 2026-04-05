@@ -1,4 +1,5 @@
-export const _exit = (code: number): void => { process.exit(code); };
+// Use `let` so tests can replace this via jest.spyOn without const-binding interference
+export let _exit = (code: number): void => { process.exit(code); };
 
 export function printSuccess(data: object): void {
   console.log(JSON.stringify({ ok: true, ...data }));

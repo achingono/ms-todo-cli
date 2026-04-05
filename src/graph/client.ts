@@ -67,39 +67,57 @@ export async function createList(displayName: string): Promise<TodoList> {
   return res.data;
 }
 
-export async function getTasks(listId: string): Promise<TodoTask[]> {
+export async function getTasks(listId: string, listName?: string): Promise<TodoTask[]> {
   const client = createClient();
-  const lists = await getLists();
-  const list = lists.find((l) => l.id === listId);
-  const listName = list?.displayName;
+  if (listName === undefined) {
+    const lists = await getLists();
+    const list = lists.find((l) => l.id === listId);
+    listName = list?.displayName;
+  }
   const res = await client.get(`/me/todo/lists/${listId}/tasks`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (res.data.value || []).map((t: any) => mapTask(t, listName, listId));
 }
 
-export async function getTask(listId: string, taskId: string): Promise<TodoTask> {
-  const client = createClient();
-  const lists = await getLists();
-  const list = lists.find((l) => l.id === listId);
-  const listName = list?.displayName;
+/** Internal helper: fetch a single task without calling getLists(). */
+async function fetchTaskRaw(
+  client: AxiosInstance,
+  listId: string,
+  taskId: string,
+  listName?: string,
+): Promise<TodoTask> {
   const res = await client.get(`/me/todo/lists/${listId}/tasks/${taskId}`);
   return mapTask(res.data, listName, listId);
 }
 
-export async function createTask(listId: string, task: object): Promise<TodoTask> {
+export async function getTask(listId: string, taskId: string, listName?: string): Promise<TodoTask> {
   const client = createClient();
-  const lists = await getLists();
-  const list = lists.find((l) => l.id === listId);
-  const listName = list?.displayName;
+  if (listName === undefined) {
+    const lists = await getLists();
+    const list = lists.find((l) => l.id === listId);
+    listName = list?.displayName;
+  }
+  return fetchTaskRaw(client, listId, taskId, listName);
+}
+
+export async function createTask(listId: string, task: object, listName?: string): Promise<TodoTask> {
+  const client = createClient();
+  if (listName === undefined) {
+    const lists = await getLists();
+    const list = lists.find((l) => l.id === listId);
+    listName = list?.displayName;
+  }
   const res = await client.post(`/me/todo/lists/${listId}/tasks`, task);
   return mapTask(res.data, listName, listId);
 }
 
-export async function updateTask(listId: string, taskId: string, updates: object): Promise<TodoTask> {
+export async function updateTask(listId: string, taskId: string, updates: object, listName?: string): Promise<TodoTask> {
   const client = createClient();
-  const lists = await getLists();
-  const list = lists.find((l) => l.id === listId);
-  const listName = list?.displayName;
+  if (listName === undefined) {
+    const lists = await getLists();
+    const list = lists.find((l) => l.id === listId);
+    listName = list?.displayName;
+  }
   const res = await client.patch(`/me/todo/lists/${listId}/tasks/${taskId}`, updates);
   return mapTask(res.data, listName, listId);
 }
@@ -109,10 +127,16 @@ export async function deleteTask(listId: string, taskId: string): Promise<void> 
   await client.delete(`/me/todo/lists/${listId}/tasks/${taskId}`);
 }
 
+/**
+ * Find a task by its ID across all lists.
+ * If listId is provided, only that list is checked (O(1) network calls).
+ * Otherwise, getLists() is called ONCE and each list is probed with a single client.
+ */
 export async function findTaskById(taskId: string, listId?: string): Promise<{ task: TodoTask; listId: string } | null> {
+  const client = createClient();
   if (listId) {
     try {
-      const task = await getTask(listId, taskId);
+      const task = await fetchTaskRaw(client, listId, taskId);
       return { task, listId };
     } catch (err) {
       if (err instanceof AppError && err.code === ErrorCodes.TASK_NOT_FOUND) return null;
@@ -122,7 +146,7 @@ export async function findTaskById(taskId: string, listId?: string): Promise<{ t
   const lists = await getLists();
   for (const list of lists) {
     try {
-      const task = await getTask(list.id, taskId);
+      const task = await fetchTaskRaw(client, list.id, taskId, list.displayName);
       return { task, listId: list.id };
     } catch (err) {
       if (err instanceof AppError && err.code === ErrorCodes.TASK_NOT_FOUND) continue;

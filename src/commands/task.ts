@@ -75,29 +75,30 @@ export async function handleTaskCreate(options: TaskCreateOptions): Promise<void
     }
 
     let listId = merged.listId;
-    const listName = merged.list;
+    let listName: string | undefined;
+    const requestedListName = merged.list;
 
-    if (!listId && listName) {
-      const list = await graph.getListByName(listName);
+    if (!listId && requestedListName) {
+      const list = await graph.getListByName(requestedListName);
       if (!list) {
-        printError(ErrorCodes.LIST_NOT_FOUND, `List not found: ${listName}`);
+        printError(ErrorCodes.LIST_NOT_FOUND, `List not found: ${requestedListName}`);
         return;
       }
       listId = list.id;
+      listName = list.displayName;
     }
 
     if (!listId) {
-      const list = await graph.getListByName('Tasks');
-      if (list) {
-        listId = list.id;
-      } else {
-        const lists = await graph.getLists();
-        if (lists.length === 0) {
-          printError(ErrorCodes.LIST_NOT_FOUND, 'No lists found. Create a list first.');
-          return;
-        }
-        listId = lists[0].id;
+      // Fetch lists once and reuse to find the default list without a second network call.
+      // Microsoft To Do creates a list named 'Tasks' by default for new accounts.
+      const lists = await graph.getLists();
+      if (lists.length === 0) {
+        printError(ErrorCodes.LIST_NOT_FOUND, 'No lists found. Create a list first.');
+        return;
       }
+      const defaultList = lists.find((l) => l.displayName.toLowerCase() === 'tasks') || lists[0];
+      listId = defaultList.id;
+      listName = defaultList.displayName;
     }
 
     if (merged.due) {
@@ -122,7 +123,7 @@ export async function handleTaskCreate(options: TaskCreateOptions): Promise<void
       taskBody['importance'] = importance;
     }
 
-    const task = await graph.createTask(listId, taskBody);
+    const task = await graph.createTask(listId, taskBody, listName);
     printSuccess({ task });
   } catch (err: unknown) {
     const e = err as { code?: string; message?: string };
@@ -140,12 +141,6 @@ export async function handleTaskUpdate(options: TaskUpdateOptions): Promise<void
 
     if (!merged.taskId) {
       printError(ErrorCodes.VALIDATION_ERROR, 'task-id is required');
-      return;
-    }
-
-    const found = await graph.findTaskById(merged.taskId, merged.listId);
-    if (!found) {
-      printError(ErrorCodes.TASK_NOT_FOUND, `Task not found: ${merged.taskId}`);
       return;
     }
 
@@ -169,7 +164,21 @@ export async function handleTaskUpdate(options: TaskUpdateOptions): Promise<void
       updates['status'] = 'notStarted';
     }
 
-    const task = await graph.updateTask(found.listId, merged.taskId, updates);
+    if (Object.keys(updates).length === 0) {
+      printError(
+        ErrorCodes.VALIDATION_ERROR,
+        'At least one updatable field must be provided: title, notes, due, priority, or completed',
+      );
+      return;
+    }
+
+    const found = await graph.findTaskById(merged.taskId, merged.listId);
+    if (!found) {
+      printError(ErrorCodes.TASK_NOT_FOUND, `Task not found: ${merged.taskId}`);
+      return;
+    }
+
+    const task = await graph.updateTask(found.listId, merged.taskId, updates, found.task.list);
     printSuccess({ task });
   } catch (err: unknown) {
     const e = err as { code?: string; message?: string };
@@ -188,7 +197,7 @@ export async function handleTaskComplete(taskId: string, listId?: string): Promi
       printError(ErrorCodes.TASK_NOT_FOUND, `Task not found: ${taskId}`);
       return;
     }
-    const task = await graph.updateTask(found.listId, taskId, { status: 'completed' });
+    const task = await graph.updateTask(found.listId, taskId, { status: 'completed' }, found.task.list);
     printSuccess({ task });
   } catch (err: unknown) {
     const e = err as { code?: string; message?: string };
@@ -199,6 +208,7 @@ export async function handleTaskComplete(taskId: string, listId?: string): Promi
 export async function handleTaskList(listName: string, options: { listId?: string }): Promise<void> {
   try {
     let listId = options.listId;
+    let resolvedListName: string | undefined;
     if (!listId && listName) {
       const list = await graph.getListByName(listName);
       if (!list) {
@@ -206,12 +216,13 @@ export async function handleTaskList(listName: string, options: { listId?: strin
         return;
       }
       listId = list.id;
+      resolvedListName = list.displayName;
     }
     if (!listId) {
       printError(ErrorCodes.VALIDATION_ERROR, 'list name or list-id is required');
       return;
     }
-    const tasks = await graph.getTasks(listId);
+    const tasks = await graph.getTasks(listId, resolvedListName);
     printSuccess({ tasks });
   } catch (err: unknown) {
     const e = err as { code?: string; message?: string };
