@@ -36,6 +36,7 @@ function createClient(): AxiosInstance {
 }
 
 const MAX_CONCURRENT_SEARCH_REQUESTS = 5;
+const ODATA_TERM_PARAMETER = '@term';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTask(item: any, listName?: string, listId?: string): TodoTask {
@@ -52,7 +53,7 @@ function mapTask(item: any, listName?: string, listId?: string): TodoTask {
   };
 }
 
-function normalizeSearchTerm(input: string): string {
+function sanitizeSearchTerm(input: string): string {
   return input
     .normalize('NFKC')
     .replace(/[\u0000-\u001f\u007f]/g, '')
@@ -62,15 +63,15 @@ function normalizeSearchTerm(input: string): string {
 }
 
 function buildTaskSearchFilter(): string {
-  return 'contains(tolower(title),@term) or contains(tolower(body/content),@term)';
+  return `contains(tolower(title),${ODATA_TERM_PARAMETER}) or contains(tolower(body/content),${ODATA_TERM_PARAMETER})`;
 }
 
-function buildTaskSearchParams(term: string): { $filter: string; $select: string; '@term': string } {
+function buildTaskSearchParams(term: string): Record<string, string> {
   const escaped = term.replace(/'/g, "''");
   return {
     $filter: buildTaskSearchFilter(),
     $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
-    '@term': `'${escaped}'`,
+    [ODATA_TERM_PARAMETER]: `'${escaped}'`,
   };
 }
 
@@ -107,7 +108,7 @@ export async function searchTasks(keyword: string): Promise<TodoTask[]> {
   const client = createClient();
   const listsRes = await client.get('/me/todo/lists');
   const lists: TodoList[] = listsRes.data.value || [];
-  const normalized = normalizeSearchTerm(keyword);
+  const normalized = sanitizeSearchTerm(keyword);
   if (!normalized) {
     return [];
   }
