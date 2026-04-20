@@ -4,6 +4,7 @@ import { ErrorCodes, AppError } from '../errors';
 import { TodoTask, TodoList, ChecklistItem } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
+// Small batch size balances latency while reducing Graph API throttling risk.
 const TASK_FETCH_BATCH_SIZE = 3;
 
 function createClient(): AxiosInstance {
@@ -204,9 +205,8 @@ export async function getTasksAcrossLists(): Promise<TodoTask[]> {
   if (lists.length === 0) return [];
 
   const tasks: TodoTask[] = [];
-  for (let i = 0; i < lists.length; i += TASK_FETCH_BATCH_SIZE) {
-    // Use a small batch size to reduce the chance of Graph API throttling.
-    const batch = lists.slice(i, i + TASK_FETCH_BATCH_SIZE);
+  for (let batchStartIndex = 0; batchStartIndex < lists.length; batchStartIndex += TASK_FETCH_BATCH_SIZE) {
+    const batch = lists.slice(batchStartIndex, batchStartIndex + TASK_FETCH_BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (list) => {
         const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
