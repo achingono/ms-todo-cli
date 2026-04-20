@@ -137,6 +137,12 @@ ms-todo-cli task list --list "Shopping"
 ms-todo-cli task list --list-id "LIST_ID"
 ```
 
+### List tasks across all lists
+
+```bash
+ms-todo-cli task list --all-lists
+```
+
 ### Get a single task
 
 ```bash

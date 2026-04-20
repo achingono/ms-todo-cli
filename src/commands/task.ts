@@ -205,8 +205,21 @@ export async function handleTaskComplete(taskId: string, listId?: string): Promi
   }
 }
 
-export async function handleTaskList(listName: string, options: { listId?: string }): Promise<void> {
+export async function handleTaskList(
+  listName: string | undefined,
+  options: { listId?: string; allLists?: boolean },
+): Promise<void> {
   try {
+    if (options.allLists && (listName || options.listId)) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'Cannot combine --all-lists with --list or --list-id');
+      return;
+    }
+    if (options.allLists) {
+      const tasks = await graph.getTasksAcrossLists();
+      printSuccess({ tasks });
+      return;
+    }
+
     let listId = options.listId;
     let resolvedListName: string | undefined;
     if (!listId && listName) {

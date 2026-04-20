@@ -73,7 +73,8 @@ taskCmd
   .description('List tasks in a list')
   .option('--list <name>', 'List name')
   .option('--list-id <id>', 'List ID')
-  .action((opts) => handleTaskList(opts.list, { listId: opts.listId }));
+  .option('--all-lists', 'List tasks across all lists')
+  .action((opts) => handleTaskList(opts.list, { listId: opts.listId, allLists: opts.allLists }));
 
 taskCmd
   .command('get')

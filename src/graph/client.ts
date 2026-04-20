@@ -196,3 +196,19 @@ export async function deleteChecklistItem(listId: string, taskId: string, checkl
   const client = createClient();
   await client.delete(`/me/todo/lists/${listId}/tasks/${taskId}/checklistItems/${checklistItemId}`);
 }
+
+export async function getTasksAcrossLists(): Promise<TodoTask[]> {
+  const client = createClient();
+  const lists = await getLists();
+  if (lists.length === 0) return [];
+
+  const tasksByList = await Promise.all(
+    lists.map(async (list) => {
+      const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (res.data.value || []).map((t: any) => mapTask(t, list.displayName, list.id));
+    })
+  );
+
+  return tasksByList.flat();
+}
