@@ -84,7 +84,7 @@ export async function searchTasks(keyword: string): Promise<TodoTask[]> {
   const listsRes = await client.get('/me/todo/lists');
   const lists: TodoList[] = listsRes.data.value || [];
   const term = keyword.trim().toLowerCase();
-  const escaped = term.replace(/'/g, "''");
+  const escaped = term.replace(/[\u0000-\u001f\u007f]/g, '').replace(/'/g, "''");
   const filter = `contains(tolower(title),'${escaped}') or contains(tolower(body/content),'${escaped}')`;
   const params = {
     $filter: filter,

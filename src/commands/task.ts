@@ -258,7 +258,7 @@ export async function handleTaskSearch(keyword: string): Promise<void> {
 
     const tasks = await graph.searchTasks(normalized);
     if (!tasks.length) {
-      printError(ErrorCodes.TASK_NOT_FOUND, `No tasks matched "${keyword}"`);
+      printError(ErrorCodes.TASK_NOT_FOUND, `No tasks matched "${normalized}"`);
       return;
     }
     printSuccess({ tasks });
