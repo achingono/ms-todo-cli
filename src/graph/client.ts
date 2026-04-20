@@ -202,13 +202,12 @@ export async function getTasksAcrossLists(): Promise<TodoTask[]> {
   const lists = await getLists();
   if (lists.length === 0) return [];
 
-  const tasksByList = await Promise.all(
-    lists.map(async (list) => {
-      const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (res.data.value || []).map((t: any) => mapTask(t, list.displayName, list.id));
-    })
-  );
+  const tasks: TodoTask[] = [];
+  for (const list of lists) {
+    const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tasks.push(...(res.data.value || []).map((t: any) => mapTask(t, list.displayName, list.id)));
+  }
 
-  return tasksByList.flat();
+  return tasks;
 }

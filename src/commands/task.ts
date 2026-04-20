@@ -211,7 +211,7 @@ export async function handleTaskList(
 ): Promise<void> {
   try {
     if (options.allLists && (listName || options.listId)) {
-      printError(ErrorCodes.VALIDATION_ERROR, 'Cannot combine --all-lists with --list or --list-id');
+      printError(ErrorCodes.VALIDATION_ERROR, 'cannot combine --all-lists with --list or --list-id');
       return;
     }
     if (options.allLists) {

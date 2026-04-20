@@ -36,7 +36,7 @@ describe('handleTaskList', () => {
     await handleTaskList('Work', { allLists: true });
     expect(mockOutput.printError).toHaveBeenCalledWith(
       ErrorCodes.VALIDATION_ERROR,
-      'Cannot combine --all-lists with --list or --list-id',
+      'cannot combine --all-lists with --list or --list-id',
     );
   });
 
