@@ -203,9 +203,10 @@ export async function getTasksAcrossLists(): Promise<TodoTask[]> {
   if (lists.length === 0) return [];
 
   const tasks: TodoTask[] = [];
-  const batchSize = 3;
-  for (let i = 0; i < lists.length; i += batchSize) {
-    const batch = lists.slice(i, i + batchSize);
+  const taskFetchBatchSize = 3;
+  for (let i = 0; i < lists.length; i += taskFetchBatchSize) {
+    // Use a small batch size to reduce the chance of Graph API throttling.
+    const batch = lists.slice(i, i + taskFetchBatchSize);
     const batchResults = await Promise.all(
       batch.map(async (list) => {
         const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
