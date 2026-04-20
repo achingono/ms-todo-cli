@@ -61,9 +61,17 @@ function normalizeSearchTerm(input: string): string {
     .trim();
 }
 
-function buildTaskSearchFilter(term: string): string {
+function buildTaskSearchFilter(): string {
+  return 'contains(tolower(title),@term) or contains(tolower(body/content),@term)';
+}
+
+function buildTaskSearchParams(term: string): { $filter: string; $select: string; '@term': string } {
   const escaped = term.replace(/'/g, "''");
-  return `contains(tolower(title),'${escaped}') or contains(tolower(body/content),'${escaped}')`;
+  return {
+    $filter: buildTaskSearchFilter(),
+    $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
+    '@term': `'${escaped}'`,
+  };
 }
 
 export async function getLists(): Promise<TodoList[]> {
@@ -104,11 +112,7 @@ export async function searchTasks(keyword: string): Promise<TodoTask[]> {
     return [];
   }
   const term = normalized.toLowerCase();
-  const filter = buildTaskSearchFilter(term);
-  const params = {
-    $filter: filter,
-    $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
-  };
+  const params = buildTaskSearchParams(term);
   const matches: TodoTask[] = [];
 
   for (let i = 0; i < lists.length; i += MAX_CONCURRENT_SEARCH_REQUESTS) {
