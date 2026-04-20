@@ -79,6 +79,28 @@ export async function getTasks(listId: string, listName?: string): Promise<TodoT
   return (res.data.value || []).map((t: any) => mapTask(t, listName, listId));
 }
 
+export async function searchTasks(keyword: string): Promise<TodoTask[]> {
+  const client = createClient();
+  const listsRes = await client.get('/me/todo/lists');
+  const lists: TodoList[] = listsRes.data.value || [];
+  const term = keyword.toLowerCase();
+  const matches: TodoTask[] = [];
+
+  for (const list of lists) {
+    const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
+    const items = res.data.value || [];
+    for (const item of items) {
+      const title = (item.title || '').toLowerCase();
+      const notes = (item.body?.content || '').toLowerCase();
+      if (title.includes(term) || notes.includes(term)) {
+        matches.push(mapTask(item, list.displayName, list.id));
+      }
+    }
+  }
+
+  return matches;
+}
+
 /** Internal helper: fetch a single task without calling getLists(). */
 async function fetchTaskRaw(
   client: AxiosInstance,

@@ -247,3 +247,22 @@ export async function handleTaskGet(taskId: string, listId?: string): Promise<vo
     printError(e.code || ErrorCodes.GRAPH_ERROR, e.message || 'Unknown error');
   }
 }
+
+export async function handleTaskSearch(keyword: string): Promise<void> {
+  try {
+    if (!keyword) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'query keyword is required');
+      return;
+    }
+
+    const tasks = await graph.searchTasks(keyword);
+    if (!tasks.length) {
+      printError(ErrorCodes.TASK_NOT_FOUND, `No tasks matched "${keyword}"`);
+      return;
+    }
+    printSuccess({ tasks });
+  } catch (err: unknown) {
+    const e = err as { code?: string; message?: string };
+    printError(e.code || ErrorCodes.GRAPH_ERROR, e.message || 'Unknown error');
+  }
+}
