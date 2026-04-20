@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { getAccessToken } from '../auth/authManager';
 import { ErrorCodes, AppError } from '../errors';
-import { TodoTask, TodoList, ChecklistItem } from '../schema/types';
+import { TodoTask, TodoList, ChecklistItem, TaskAttachment } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
 
@@ -195,4 +195,25 @@ export async function updateChecklistItem(
 export async function deleteChecklistItem(listId: string, taskId: string, checklistItemId: string): Promise<void> {
   const client = createClient();
   await client.delete(`/me/todo/lists/${listId}/tasks/${taskId}/checklistItems/${checklistItemId}`);
+}
+
+export async function uploadAttachment(
+  listId: string,
+  taskId: string,
+  attachment: { name: string; contentBytes: string; contentType?: string },
+): Promise<TaskAttachment> {
+  const client = createClient();
+  const payload = {
+    '@odata.type': '#microsoft.graph.fileAttachment',
+    name: attachment.name,
+    contentBytes: attachment.contentBytes,
+    contentType: attachment.contentType,
+  };
+  const res = await client.post(`/me/todo/lists/${listId}/tasks/${taskId}/attachments`, payload);
+  return {
+    id: res.data.id,
+    name: res.data.name,
+    size: res.data.size,
+    contentType: res.data.contentType,
+  };
 }

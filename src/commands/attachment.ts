@@ -1,0 +1,68 @@
+import { promises as fs } from 'fs';
+import path from 'path';
+import * as graph from '../graph/client';
+import { printError, printSuccess } from '../output';
+import { ErrorCodes } from '../errors';
+
+const MAX_ATTACHMENT_SIZE_BYTES = 3 * 1024 * 1024; // Microsoft Graph simple attachment limit (3 MB)
+
+interface AttachmentOptions {
+  taskId?: string;
+  listId?: string;
+  file?: string;
+  name?: string;
+}
+
+function handleError(err: unknown): void {
+  const e = err as { code?: string; message?: string };
+  printError(e.code || ErrorCodes.GRAPH_ERROR, e.message || 'Unknown error');
+}
+
+export async function handleAttachmentUpload(options: AttachmentOptions): Promise<void> {
+  try {
+    if (!options.taskId) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'task-id is required');
+      return;
+    }
+    if (!options.file) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'file path is required');
+      return;
+    }
+
+    const filePath = path.resolve(options.file);
+    let stats;
+    try {
+      stats = await fs.stat(filePath);
+    } catch {
+      printError(ErrorCodes.VALIDATION_ERROR, `File not found: ${filePath}`);
+      return;
+    }
+    if (!stats.isFile()) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'file path must point to a file');
+      return;
+    }
+    if (stats.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'attachment must be 3 MB or smaller');
+      return;
+    }
+
+    const buffer = await fs.readFile(filePath);
+    const attachmentName = options.name || path.basename(filePath) || 'attachment';
+    const contentBytes = buffer.toString('base64');
+
+    const found = await graph.findTaskById(options.taskId, options.listId);
+    if (!found) {
+      printError(ErrorCodes.TASK_NOT_FOUND, `Task not found: ${options.taskId}`);
+      return;
+    }
+
+    const attachment = await graph.uploadAttachment(found.listId, options.taskId, {
+      name: attachmentName,
+      contentBytes,
+      contentType: 'application/octet-stream',
+    });
+    printSuccess({ attachment });
+  } catch (err: unknown) {
+    handleError(err);
+  }
+}
