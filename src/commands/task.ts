@@ -250,12 +250,13 @@ export async function handleTaskGet(taskId: string, listId?: string): Promise<vo
 
 export async function handleTaskSearch(keyword: string): Promise<void> {
   try {
-    if (!keyword) {
-      printError(ErrorCodes.VALIDATION_ERROR, 'query keyword is required');
+    const normalized = keyword?.trim();
+    if (!normalized) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'keyword is required');
       return;
     }
 
-    const tasks = await graph.searchTasks(keyword);
+    const tasks = await graph.searchTasks(normalized);
     if (!tasks.length) {
       printError(ErrorCodes.TASK_NOT_FOUND, `No tasks matched "${keyword}"`);
       return;

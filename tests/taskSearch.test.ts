@@ -1,6 +1,7 @@
 // Tests for task search command handler
 
 import { ErrorCodes } from '../src/errors';
+import { TodoTask } from '../src/schema/types';
 
 jest.mock('../src/graph/client', () => ({
   searchTasks: jest.fn(),
@@ -26,7 +27,7 @@ beforeEach(() => {
 describe('handleTaskSearch', () => {
   test('errors when keyword is missing', async () => {
     await handleTaskSearch('');
-    expect(mockOutput.printError).toHaveBeenCalledWith(ErrorCodes.VALIDATION_ERROR, 'query keyword is required');
+    expect(mockOutput.printError).toHaveBeenCalledWith(ErrorCodes.VALIDATION_ERROR, 'keyword is required');
   });
 
   test('errors when no tasks match', async () => {
@@ -37,8 +38,8 @@ describe('handleTaskSearch', () => {
   });
 
   test('prints tasks when matches found', async () => {
-    const tasks = [{ id: '1', title: 'Buy milk', list: 'Shopping' }];
-    mockGraph.searchTasks.mockResolvedValue(tasks as any);
+    const tasks: TodoTask[] = [{ id: '1', title: 'Buy milk', list: 'Shopping' }];
+    mockGraph.searchTasks.mockResolvedValue(tasks);
     await handleTaskSearch('milk');
     expect(mockOutput.printSuccess).toHaveBeenCalledWith({ tasks });
   });

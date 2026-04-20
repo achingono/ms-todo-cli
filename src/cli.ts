@@ -85,8 +85,9 @@ taskCmd
 taskCmd
   .command('search')
   .description('Search tasks across all lists by keyword')
-  .argument('<keyword>', 'Keyword to match in title or notes')
-  .action((keyword) => handleTaskSearch(keyword));
+  .argument('[keyword]', 'Keyword to match in title or notes (positional alias for --query)')
+  .option('-q, --query <keyword>', 'Keyword to match in title or notes')
+  .action((keyword, opts) => handleTaskSearch(opts.query || keyword));
 
 // Step commands (task checklist items)
 const stepCmd = program.command('step').description('Task step (checklist item) commands');

@@ -83,19 +83,26 @@ export async function searchTasks(keyword: string): Promise<TodoTask[]> {
   const client = createClient();
   const listsRes = await client.get('/me/todo/lists');
   const lists: TodoList[] = listsRes.data.value || [];
-  const term = keyword.toLowerCase();
+  const term = keyword.trim().toLowerCase();
+  const escaped = term.replace(/'/g, "''");
+  const filter = `contains(tolower(title),'${escaped}') or contains(tolower(body/content),'${escaped}')`;
+  const params = {
+    $filter: filter,
+    $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
+  };
   const matches: TodoTask[] = [];
+  const batchSize = 5;
 
-  for (const list of lists) {
-    const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
-    const items = res.data.value || [];
-    for (const item of items) {
-      const title = (item.title || '').toLowerCase();
-      const notes = (item.body?.content || '').toLowerCase();
-      if (title.includes(term) || notes.includes(term)) {
-        matches.push(mapTask(item, list.displayName, list.id));
-      }
-    }
+  for (let i = 0; i < lists.length; i += batchSize) {
+    const batch = lists.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map(async (list) => {
+        const res = await client.get(`/me/todo/lists/${list.id}/tasks`, { params });
+        const items = res.data.value || [];
+        return items.map((item: unknown) => mapTask(item, list.displayName, list.id));
+      }),
+    );
+    matches.push(...results.flat());
   }
 
   return matches;
