@@ -4,6 +4,7 @@ import { ErrorCodes, AppError } from '../errors';
 import { TodoTask, TodoList, ChecklistItem } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
+const TASK_FETCH_BATCH_SIZE = 3;
 
 function createClient(): AxiosInstance {
   const client = axios.create({ baseURL: BASE_URL });
@@ -203,10 +204,9 @@ export async function getTasksAcrossLists(): Promise<TodoTask[]> {
   if (lists.length === 0) return [];
 
   const tasks: TodoTask[] = [];
-  const taskFetchBatchSize = 3;
-  for (let i = 0; i < lists.length; i += taskFetchBatchSize) {
+  for (let i = 0; i < lists.length; i += TASK_FETCH_BATCH_SIZE) {
     // Use a small batch size to reduce the chance of Graph API throttling.
-    const batch = lists.slice(i, i + taskFetchBatchSize);
+    const batch = lists.slice(i, i + TASK_FETCH_BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (list) => {
         const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
