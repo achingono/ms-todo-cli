@@ -85,7 +85,7 @@ taskCmd
 taskCmd
   .command('search')
   .description('Search tasks across all lists by keyword')
-  .argument('[keyword]', 'Keyword to match in title or notes (positional alias for --query)')
+  .argument('[keyword]', 'Keyword to match in title or notes')
   .option('-q, --query <keyword>', 'Keyword to match in title or notes')
   .action((keyword, opts) => handleTaskSearch(opts.query || keyword));
 

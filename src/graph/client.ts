@@ -84,17 +84,20 @@ export async function searchTasks(keyword: string): Promise<TodoTask[]> {
   const listsRes = await client.get('/me/todo/lists');
   const lists: TodoList[] = listsRes.data.value || [];
   const term = keyword.trim().toLowerCase();
-  const escaped = term.replace(/[\u0000-\u001f\u007f]/g, '').replace(/'/g, "''");
+  const escaped = term
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "''");
   const filter = `contains(tolower(title),'${escaped}') or contains(tolower(body/content),'${escaped}')`;
   const params = {
     $filter: filter,
     $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
   };
   const matches: TodoTask[] = [];
-  const batchSize = 5;
+  const maxConcurrentListRequests = 5;
 
-  for (let i = 0; i < lists.length; i += batchSize) {
-    const batch = lists.slice(i, i + batchSize);
+  for (let i = 0; i < lists.length; i += maxConcurrentListRequests) {
+    const batch = lists.slice(i, i + maxConcurrentListRequests);
     const results = await Promise.all(
       batch.map(async (list) => {
         const res = await client.get(`/me/todo/lists/${list.id}/tasks`, { params });
