@@ -35,6 +35,8 @@ function createClient(): AxiosInstance {
   return client;
 }
 
+const MAX_CONCURRENT_SEARCH_REQUESTS = 5;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTask(item: any, listName?: string, listId?: string): TodoTask {
   return {
@@ -48,6 +50,20 @@ function mapTask(item: any, listName?: string, listId?: string): TodoTask {
     priority: item.importance,
     completedDateTime: item.completedDateTime?.dateTime,
   };
+}
+
+function normalizeSearchTerm(input: string): string {
+  return input
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/[^\p{L}\p{N}\s._-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildTaskSearchFilter(term: string): string {
+  const escaped = term.replace(/'/g, "''");
+  return `contains(tolower(title),'${escaped}') or contains(tolower(body/content),'${escaped}')`;
 }
 
 export async function getLists(): Promise<TodoList[]> {
@@ -83,21 +99,20 @@ export async function searchTasks(keyword: string): Promise<TodoTask[]> {
   const client = createClient();
   const listsRes = await client.get('/me/todo/lists');
   const lists: TodoList[] = listsRes.data.value || [];
-  const term = keyword.trim().toLowerCase();
-  const escaped = term
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "''");
-  const filter = `contains(tolower(title),'${escaped}') or contains(tolower(body/content),'${escaped}')`;
+  const normalized = normalizeSearchTerm(keyword);
+  if (!normalized) {
+    return [];
+  }
+  const term = normalized.toLowerCase();
+  const filter = buildTaskSearchFilter(term);
   const params = {
     $filter: filter,
     $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
   };
   const matches: TodoTask[] = [];
-  const maxConcurrentListRequests = 5;
 
-  for (let i = 0; i < lists.length; i += maxConcurrentListRequests) {
-    const batch = lists.slice(i, i + maxConcurrentListRequests);
+  for (let i = 0; i < lists.length; i += MAX_CONCURRENT_SEARCH_REQUESTS) {
+    const batch = lists.slice(i, i + MAX_CONCURRENT_SEARCH_REQUESTS);
     const results = await Promise.all(
       batch.map(async (list) => {
         const res = await client.get(`/me/todo/lists/${list.id}/tasks`, { params });
