@@ -201,7 +201,11 @@ export async function deleteChecklistItem(listId: string, taskId: string, checkl
 
 export async function getTasksAcrossLists(): Promise<TodoTask[]> {
   const client = createClient();
-  const lists = await getLists();
+  const listsRes = await client.get('/me/todo/lists');
+  const lists: Pick<TodoList, 'id' | 'displayName'>[] = (listsRes.data.value || []).map(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (list: any) => ({ id: list.id, displayName: list.displayName }),
+  );
   if (lists.length === 0) return [];
 
   const tasks: TodoTask[] = [];
