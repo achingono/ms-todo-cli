@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { getAccessToken } from '../auth/authManager';
 import { ErrorCodes, AppError } from '../errors';
 import { TodoTask, TodoList, ChecklistItem } from '../schema/types';
@@ -50,6 +50,22 @@ function mapTask(item: any, listName?: string, listId?: string): TodoTask {
     priority: item.importance,
     completedDateTime: item.completedDateTime?.dateTime,
   };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PageItemMapper<T> = (item: any) => T;
+
+async function fetchPaged<T>(client: AxiosInstance, url: string, mapItem: PageItemMapper<T>): Promise<T[]> {
+  const results: T[] = [];
+  let nextUrl: string | undefined = url;
+  while (nextUrl) {
+    const res: AxiosResponse<{ value?: any[]; '@odata.nextLink'?: string }> = await client.get(nextUrl);
+    for (const item of res.data.value || []) {
+      results.push(mapItem(item));
+    }
+    nextUrl = res.data['@odata.nextLink'];
+  }
+  return results;
 }
 
 export async function getLists(): Promise<TodoList[]> {
@@ -201,11 +217,10 @@ export async function deleteChecklistItem(listId: string, taskId: string, checkl
 
 export async function getTasksAcrossLists(): Promise<TodoTask[]> {
   const client = createClient();
-  const listsRes = await client.get('/me/todo/lists');
-  const lists: Pick<TodoList, 'id' | 'displayName'>[] = (listsRes.data.value || []).map(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (list: any) => ({ id: list.id, displayName: list.displayName }),
-  );
+  const lists = await fetchPaged(client, '/me/todo/lists', (list) => ({
+    id: list.id,
+    displayName: list.displayName,
+  }));
   if (lists.length === 0) return [];
 
   const tasks: TodoTask[] = [];
@@ -213,9 +228,9 @@ export async function getTasksAcrossLists(): Promise<TodoTask[]> {
     const batch = lists.slice(batchStartIndex, batchStartIndex + TASK_FETCH_BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (list) => {
-        const res = await client.get(`/me/todo/lists/${list.id}/tasks`);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (res.data.value || []).map((t: any) => mapTask(t, list.displayName, list.id));
+        return fetchPaged(client, `/me/todo/lists/${list.id}/tasks`, (task) =>
+          mapTask(task, list.displayName, list.id),
+        );
       }),
     );
     tasks.push(...batchResults.flat());
