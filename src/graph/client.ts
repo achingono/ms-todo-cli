@@ -21,8 +21,7 @@ function createClient(): AxiosInstance {
       if (status === 429) throw new AppError(ErrorCodes.RATE_LIMITED, 'Rate limited by Microsoft Graph API');
       if (status === 401 || status === 403) throw new AppError(ErrorCodes.AUTH_EXPIRED, 'Authentication expired or invalid');
       if (status === 404) {
-        // Determine whether the missing resource is a list or a task by examining the URL.
-        // Paths ending at /lists/{id} or /lists/{id}/tasks (no task segment) are list-level 404s.
+        // Determine the missing resource type by examining the URL path.
         const url: string = err.config?.url || '';
         if (/\/listGroups\/[^/]+/.test(url)) {
           throw new AppError(ErrorCodes.LIST_GROUP_NOT_FOUND, 'List group not found');
