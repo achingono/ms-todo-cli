@@ -91,6 +91,28 @@ describe('handleAttachmentUpload', () => {
     );
   });
 
+  test('returns "File not found" error when readFile throws ENOENT', async () => {
+    mockFs.stat.mockResolvedValue({ isFile: () => true, size: 10 });
+    const enoentErr = Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
+    mockFs.readFile.mockRejectedValue(enoentErr);
+    await handleAttachmentUpload({ taskId: TASK_ID, file: '/tmp/file.txt' });
+    expect(mockOutput.printError).toHaveBeenCalledWith(
+      ErrorCodes.VALIDATION_ERROR,
+      expect.stringContaining('File not found'),
+    );
+  });
+
+  test('returns "Cannot read file" error when readFile throws non-ENOENT error', async () => {
+    mockFs.stat.mockResolvedValue({ isFile: () => true, size: 10 });
+    const permErr = Object.assign(new Error('permission denied'), { code: 'EACCES' });
+    mockFs.readFile.mockRejectedValue(permErr);
+    await handleAttachmentUpload({ taskId: TASK_ID, file: '/tmp/file.txt' });
+    expect(mockOutput.printError).toHaveBeenCalledWith(
+      ErrorCodes.VALIDATION_ERROR,
+      expect.stringContaining('Cannot read file'),
+    );
+  });
+
   test('returns error when task is not found', async () => {
     mockFs.stat.mockResolvedValue({ isFile: () => true, size: 10 });
     mockFs.readFile.mockResolvedValue(Buffer.from('abc'));

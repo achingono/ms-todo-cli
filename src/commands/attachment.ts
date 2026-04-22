@@ -51,7 +51,18 @@ export async function handleAttachmentUpload(options: AttachmentOptions): Promis
       return;
     }
 
-    const buffer = await fs.readFile(filePath);
+    let buffer: Buffer;
+    try {
+      buffer = await fs.readFile(filePath);
+    } catch (err: unknown) {
+      const e = err as { code?: string };
+      if (e.code === 'ENOENT') {
+        printError(ErrorCodes.VALIDATION_ERROR, `File not found: ${filePath}`);
+      } else {
+        printError(ErrorCodes.VALIDATION_ERROR, `Cannot read file: ${(err as Error).message}`);
+      }
+      return;
+    }
     const attachmentName = options.name || path.basename(filePath) || 'attachment';
     const contentBytes = buffer.toString('base64');
 
