@@ -85,8 +85,7 @@ async function fetchPaged<TInput, TOutput>(
 
 export async function getListGroups(): Promise<TodoListGroup[]> {
   const client = createClient();
-  const res = await client.get('/me/todo/listGroups');
-  return res.data.value;
+  return fetchPaged<TodoListGroup, TodoListGroup>(client, '/me/todo/listGroups', (group) => group);
 }
 
 export async function getListGroupByName(name: string): Promise<TodoListGroup | null> {
