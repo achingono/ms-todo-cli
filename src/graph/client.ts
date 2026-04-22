@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { getAccessToken } from '../auth/authManager';
 import { ErrorCodes, AppError } from '../errors';
-import { TodoTask, TodoList, ChecklistItem } from '../schema/types';
+import { TodoTask, TodoList, ChecklistItem, TodoListGroup } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
 
@@ -21,9 +21,11 @@ function createClient(): AxiosInstance {
       if (status === 429) throw new AppError(ErrorCodes.RATE_LIMITED, 'Rate limited by Microsoft Graph API');
       if (status === 401 || status === 403) throw new AppError(ErrorCodes.AUTH_EXPIRED, 'Authentication expired or invalid');
       if (status === 404) {
-        // Determine whether the missing resource is a list or a task by examining the URL.
-        // Paths ending at /lists/{id} or /lists/{id}/tasks (no task segment) are list-level 404s.
+        // Determine the missing resource type by examining the URL path.
         const url: string = err.config?.url || '';
+        if (/\/listGroups\/[^/]+/.test(url)) {
+          throw new AppError(ErrorCodes.LIST_GROUP_NOT_FOUND, 'List group not found');
+        }
         if (/\/lists\/[^/]+(?:\/tasks)?$/.test(url)) {
           throw new AppError(ErrorCodes.LIST_NOT_FOUND, 'List not found');
         }
@@ -48,6 +50,34 @@ function mapTask(item: any, listName?: string, listId?: string): TodoTask {
     priority: item.importance,
     completedDateTime: item.completedDateTime?.dateTime,
   };
+}
+
+export async function getListGroups(): Promise<TodoListGroup[]> {
+  const client = createClient();
+  const res = await client.get('/me/todo/listGroups');
+  return res.data.value;
+}
+
+export async function getListGroupByName(name: string): Promise<TodoListGroup | null> {
+  const groups = await getListGroups();
+  return groups.find((g) => g.displayName.toLowerCase() === name.toLowerCase()) || null;
+}
+
+export async function createListGroup(displayName: string): Promise<TodoListGroup> {
+  const client = createClient();
+  const res = await client.post('/me/todo/listGroups', { displayName });
+  return res.data;
+}
+
+export async function updateListGroup(listGroupId: string, updates: { displayName?: string }): Promise<TodoListGroup> {
+  const client = createClient();
+  const res = await client.patch(`/me/todo/listGroups/${listGroupId}`, updates);
+  return res.data;
+}
+
+export async function deleteListGroup(listGroupId: string): Promise<void> {
+  const client = createClient();
+  await client.delete(`/me/todo/listGroups/${listGroupId}`);
 }
 
 export async function getLists(): Promise<TodoList[]> {

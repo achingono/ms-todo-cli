@@ -6,6 +6,7 @@ A command-line interface for Microsoft To Do, built with TypeScript and Node.js.
 
 - OAuth authentication via Microsoft device code flow
 - Manage todo lists (create, list)
+- Manage list groups (create, update, delete, list)
 - Manage tasks (create, update, complete, list, get)
 - Manage task steps / checklist items (create, update, complete, delete, list)
 - JSON output for easy scripting and integration
@@ -96,6 +97,36 @@ ms-todo-cli list create "Shopping"
 
 ```bash
 ms-todo-cli list list
+```
+
+## List Group Commands
+
+### Create a list group
+
+```bash
+ms-todo-cli group create "Work"
+```
+
+### List all list groups
+
+```bash
+ms-todo-cli group list
+```
+
+### Update a list group name
+
+```bash
+ms-todo-cli group update --group-id "GROUP_ID" --name "Renamed"
+# Or resolve by name:
+ms-todo-cli group update --group "Work" --name "Projects"
+```
+
+### Delete a list group
+
+```bash
+ms-todo-cli group delete --group-id "GROUP_ID"
+# Or resolve by name:
+ms-todo-cli group delete --group "Work"
 ```
 
 ## Task Commands
