@@ -5,6 +5,7 @@ import { handleListCreate, handleListList } from './commands/list';
 import { handleTaskCreate, handleTaskUpdate, handleTaskComplete, handleTaskList, handleTaskGet } from './commands/task';
 import { handleStepList, handleStepCreate, handleStepUpdate, handleStepComplete, handleStepDelete } from './commands/step';
 import { handleAttachmentUpload } from './commands/attachment';
+import { handleGroupCreate, handleGroupList, handleGroupUpdate, handleGroupDelete } from './commands/group';
 import { printError } from './output';
 import { ErrorCodes } from './errors';
 
@@ -33,6 +34,24 @@ auth.command('print-account').description('Print current account info').action(h
 const listCmd = program.command('list').description('Todo list management commands');
 listCmd.command('create <name>').description('Create a new todo list').action(handleListCreate);
 listCmd.command('list').description('List all todo lists').action(handleListList);
+
+// List group commands
+const groupCmd = program.command('group').description('List group management commands');
+groupCmd.command('create <name>').description('Create a new list group').action(handleGroupCreate);
+groupCmd.command('list').description('List all list groups').action(handleGroupList);
+groupCmd
+  .command('update')
+  .description('Update a list group')
+  .option('--group-id <id>', 'List group ID')
+  .option('--group <name>', 'List group name')
+  .option('--name <name>', 'New group name')
+  .action((opts) => handleGroupUpdate(opts));
+groupCmd
+  .command('delete')
+  .description('Delete a list group')
+  .option('--group-id <id>', 'List group ID')
+  .option('--group <name>', 'List group name')
+  .action((opts) => handleGroupDelete(opts));
 
 // Task commands
 const taskCmd = program.command('task').description('Todo task commands');
