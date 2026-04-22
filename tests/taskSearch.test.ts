@@ -30,6 +30,12 @@ describe('handleTaskSearch', () => {
     expect(mockOutput.printError).toHaveBeenCalledWith(ErrorCodes.VALIDATION_ERROR, 'keyword is required');
   });
 
+  test('errors when keyword normalizes to empty', async () => {
+    await handleTaskSearch('!!!');
+    expect(mockGraph.searchTasks).not.toHaveBeenCalled();
+    expect(mockOutput.printError).toHaveBeenCalledWith(ErrorCodes.VALIDATION_ERROR, 'keyword is required');
+  });
+
   test('errors when no tasks match', async () => {
     mockGraph.searchTasks.mockResolvedValue([]);
     await handleTaskSearch('milk');

@@ -2,6 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { getAccessToken } from '../auth/authManager';
 import { ErrorCodes, AppError } from '../errors';
 import { TodoTask, TodoList, ChecklistItem } from '../schema/types';
+import { sanitizeSearchTerm } from '../utils/search';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
 
@@ -53,15 +54,6 @@ function mapTask(item: any, listName?: string, listId?: string): TodoTask {
   };
 }
 
-function sanitizeSearchTerm(input: string): string {
-  return input
-    .normalize('NFKC')
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .replace(/[^\p{L}\p{N}\s._-]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function buildTaskSearchFilter(): string {
   return `contains(tolower(title),${ODATA_TERM_PARAMETER}) or contains(tolower(body/content),${ODATA_TERM_PARAMETER})`;
 }
@@ -73,6 +65,29 @@ function buildTaskSearchParams(term: string): Record<string, string> {
     $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
     [ODATA_TERM_PARAMETER]: `'${escaped}'`,
   };
+}
+
+async function fetchSearchTasksForList(
+  client: AxiosInstance,
+  list: TodoList,
+  params: Record<string, string>,
+): Promise<TodoTask[]> {
+  const tasks: TodoTask[] = [];
+  let nextUrl: string | undefined = `/me/todo/lists/${list.id}/tasks`;
+  let isFirstRequest = true;
+
+  while (nextUrl) {
+    const res: { data: { value?: unknown[]; '@odata.nextLink'?: string } } = await client.get(
+      nextUrl,
+      isFirstRequest ? { params } : undefined,
+    );
+    const items = res.data.value || [];
+    tasks.push(...items.map((item: unknown) => mapTask(item, list.displayName, list.id)));
+    nextUrl = res.data['@odata.nextLink'];
+    isFirstRequest = false;
+  }
+
+  return tasks;
 }
 
 export async function getLists(): Promise<TodoList[]> {
@@ -120,9 +135,7 @@ export async function searchTasks(keyword: string): Promise<TodoTask[]> {
     const batch = lists.slice(i, i + MAX_CONCURRENT_SEARCH_REQUESTS);
     const results = await Promise.all(
       batch.map(async (list) => {
-        const res = await client.get(`/me/todo/lists/${list.id}/tasks`, { params });
-        const items = res.data.value || [];
-        return items.map((item: unknown) => mapTask(item, list.displayName, list.id));
+        return fetchSearchTasksForList(client, list, params);
       }),
     );
     matches.push(...results.flat());

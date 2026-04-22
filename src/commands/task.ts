@@ -1,5 +1,6 @@
 import * as readline from 'readline';
 import * as graph from '../graph/client';
+import { sanitizeSearchTerm } from '../utils/search';
 import { printSuccess, printError } from '../output';
 import { ErrorCodes, AppError } from '../errors';
 
@@ -250,7 +251,7 @@ export async function handleTaskGet(taskId: string, listId?: string): Promise<vo
 
 export async function handleTaskSearch(keyword: string): Promise<void> {
   try {
-    const normalized = keyword?.trim();
+    const normalized = sanitizeSearchTerm(keyword || '');
     if (!normalized) {
       printError(ErrorCodes.VALIDATION_ERROR, 'keyword is required');
       return;
