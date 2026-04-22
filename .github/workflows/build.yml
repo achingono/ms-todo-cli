@@ -7,15 +7,30 @@ on:
     tags:
       - 'v*.*.*'
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
+
+permissions:
+  checks: write
+  pull-requests: write
+  contents: read
+  packages: write
 
 jobs:
   build:
     name: Build and test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     permissions:
       contents: read
+      checks: write
+      pull-requests: write
+      packages: write
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
