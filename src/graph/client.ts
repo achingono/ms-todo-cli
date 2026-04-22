@@ -90,6 +90,8 @@ async function fetchSearchTasksForList(
   }
 
   return tasks;
+}
+
 export async function getListGroups(): Promise<TodoListGroup[]> {
   const client = createClient();
   const res = await client.get('/me/todo/listGroups');
@@ -118,9 +120,9 @@ export async function deleteListGroup(listGroupId: string): Promise<void> {
   await client.delete(`/me/todo/listGroups/${listGroupId}`);
 }
 
-export async function getLists(): Promise<TodoList[]> {
-  const client = createClient();
-  const res = await client.get('/me/todo/lists');
+export async function getLists(client?: AxiosInstance): Promise<TodoList[]> {
+  const activeClient = client ?? createClient();
+  const res = await activeClient.get('/me/todo/lists');
   return res.data.value;
 }
 
@@ -149,12 +151,11 @@ export async function getTasks(listId: string, listName?: string): Promise<TodoT
 
 export async function searchTasks(keyword: string): Promise<TodoTask[]> {
   const client = createClient();
-  const listsRes = await client.get('/me/todo/lists');
-  const lists: TodoList[] = listsRes.data.value || [];
   const normalized = sanitizeSearchTerm(keyword);
   if (!normalized) {
     return [];
   }
+  const lists = await getLists(client);
   const term = normalized.toLowerCase();
   const params = buildTaskSearchParams(term);
   const matches: TodoTask[] = [];
