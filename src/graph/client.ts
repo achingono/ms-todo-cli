@@ -39,8 +39,17 @@ function createClient(): AxiosInstance {
   return client;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTask(item: any, listName?: string, listId?: string): TodoTask {
+type GraphTask = {
+  id: string;
+  title: string;
+  status?: string;
+  body?: { content?: string };
+  dueDateTime?: { dateTime?: string };
+  importance?: string;
+  completedDateTime?: { dateTime?: string };
+};
+
+function mapTask(item: GraphTask, listName?: string, listId?: string): TodoTask {
   return {
     id: item.id,
     title: item.title,
@@ -54,14 +63,18 @@ function mapTask(item: any, listName?: string, listId?: string): TodoTask {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PageItemMapper<T> = (item: any) => T;
+type ODataPage<T> = { value?: T[]; '@odata.nextLink'?: string };
+type PageItemMapper<TInput, TOutput> = (item: TInput) => TOutput;
 
-async function fetchPaged<T>(client: AxiosInstance, url: string, mapItem: PageItemMapper<T>): Promise<T[]> {
-  const results: T[] = [];
+async function fetchPaged<TInput, TOutput>(
+  client: AxiosInstance,
+  url: string,
+  mapItem: PageItemMapper<TInput, TOutput>,
+): Promise<TOutput[]> {
+  const results: TOutput[] = [];
   let nextUrl: string | undefined = url;
   while (nextUrl) {
-    const res: AxiosResponse<{ value?: any[]; '@odata.nextLink'?: string }> = await client.get(nextUrl);
+    const res: AxiosResponse<ODataPage<TInput>> = await client.get(nextUrl);
     for (const item of res.data.value || []) {
       results.push(mapItem(item));
     }
@@ -247,7 +260,7 @@ export async function deleteChecklistItem(listId: string, taskId: string, checkl
 
 export async function getTasksAcrossLists(): Promise<TodoTask[]> {
   const client = createClient();
-  const lists = await fetchPaged(client, '/me/todo/lists', (list) => ({
+  const lists = await fetchPaged<TodoList, Pick<TodoList, 'id' | 'displayName'>>(client, '/me/todo/lists', (list) => ({
     id: list.id,
     displayName: list.displayName,
   }));
@@ -258,7 +271,7 @@ export async function getTasksAcrossLists(): Promise<TodoTask[]> {
     const batch = lists.slice(batchStartIndex, batchStartIndex + TASK_FETCH_BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (list) => {
-        return fetchPaged(client, `/me/todo/lists/${list.id}/tasks`, (task) =>
+        return fetchPaged<GraphTask, TodoTask>(client, `/me/todo/lists/${list.id}/tasks`, (task) =>
           mapTask(task, list.displayName, list.id),
         );
       }),
