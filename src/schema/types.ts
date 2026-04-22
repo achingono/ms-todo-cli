@@ -23,6 +23,11 @@ export interface TodoList {
   displayName: string;
 }
 
+export interface TodoListGroup {
+  id: string;
+  displayName: string;
+}
+
 export interface AuthAccount {
   username: string;
   name: string;
