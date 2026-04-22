@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import { promises as fs, Stats } from 'fs';
 import path from 'path';
 import * as graph from '../graph/client';
 import { printError, printSuccess } from '../output';
@@ -30,11 +30,16 @@ export async function handleAttachmentUpload(options: AttachmentOptions): Promis
     }
 
     const filePath = path.resolve(options.file);
-    let stats;
+    let stats: Stats;
     try {
       stats = await fs.stat(filePath);
-    } catch {
-      printError(ErrorCodes.VALIDATION_ERROR, `File not found: ${filePath}`);
+    } catch (err: unknown) {
+      const e = err as { code?: string };
+      if (e.code === 'ENOENT') {
+        printError(ErrorCodes.VALIDATION_ERROR, `File not found: ${filePath}`);
+      } else {
+        printError(ErrorCodes.VALIDATION_ERROR, `Cannot access file: ${(err as Error).message}`);
+      }
       return;
     }
     if (!stats.isFile()) {

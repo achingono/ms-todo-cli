@@ -51,6 +51,45 @@ describe('handleAttachmentUpload', () => {
     expect(mockOutput.printError).toHaveBeenCalledWith(ErrorCodes.VALIDATION_ERROR, 'file path is required');
   });
 
+  test('returns "File not found" error when stat throws ENOENT', async () => {
+    const enoentErr = Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
+    mockFs.stat.mockRejectedValue(enoentErr);
+    await handleAttachmentUpload({ taskId: TASK_ID, file: '/tmp/missing.txt' });
+    expect(mockOutput.printError).toHaveBeenCalledWith(
+      ErrorCodes.VALIDATION_ERROR,
+      expect.stringContaining('File not found'),
+    );
+  });
+
+  test('returns "Cannot access file" error when stat throws non-ENOENT error', async () => {
+    const permErr = Object.assign(new Error('permission denied'), { code: 'EACCES' });
+    mockFs.stat.mockRejectedValue(permErr);
+    await handleAttachmentUpload({ taskId: TASK_ID, file: '/tmp/secret.txt' });
+    expect(mockOutput.printError).toHaveBeenCalledWith(
+      ErrorCodes.VALIDATION_ERROR,
+      expect.stringContaining('Cannot access file'),
+    );
+  });
+
+  test('returns error when path is not a file', async () => {
+    mockFs.stat.mockResolvedValue({ isFile: () => false, size: 0 });
+    await handleAttachmentUpload({ taskId: TASK_ID, file: '/tmp' });
+    expect(mockOutput.printError).toHaveBeenCalledWith(
+      ErrorCodes.VALIDATION_ERROR,
+      'file path must point to a file',
+    );
+  });
+
+  test('returns error when file exceeds 3 MB limit', async () => {
+    const oversizeBytes = 3 * 1024 * 1024 + 1;
+    mockFs.stat.mockResolvedValue({ isFile: () => true, size: oversizeBytes });
+    await handleAttachmentUpload({ taskId: TASK_ID, file: '/tmp/big.bin' });
+    expect(mockOutput.printError).toHaveBeenCalledWith(
+      ErrorCodes.VALIDATION_ERROR,
+      'attachment must be 3 MB or smaller',
+    );
+  });
+
   test('returns error when task is not found', async () => {
     mockFs.stat.mockResolvedValue({ isFile: () => true, size: 10 });
     mockFs.readFile.mockResolvedValue(Buffer.from('abc'));
