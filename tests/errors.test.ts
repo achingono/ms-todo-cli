@@ -7,6 +7,9 @@ describe('ErrorCodes', () => {
   test('AUTH_EXPIRED is defined', () => {
     expect(ErrorCodes.AUTH_EXPIRED).toBe('AUTH_EXPIRED');
   });
+  test('LIST_GROUP_NOT_FOUND is defined', () => {
+    expect(ErrorCodes.LIST_GROUP_NOT_FOUND).toBe('LIST_GROUP_NOT_FOUND');
+  });
   test('LIST_NOT_FOUND is defined', () => {
     expect(ErrorCodes.LIST_NOT_FOUND).toBe('LIST_NOT_FOUND');
   });
