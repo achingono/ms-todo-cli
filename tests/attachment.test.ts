@@ -35,6 +35,7 @@ const mockFs = fs as unknown as {
 const TASK_ID = 'task-123';
 const LIST_ID = 'list-456';
 const foundTask = { task: { id: TASK_ID, title: 'Sample' }, listId: LIST_ID };
+const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -81,7 +82,7 @@ describe('handleAttachmentUpload', () => {
   });
 
   test('returns error when file exceeds 3 MB limit', async () => {
-    const oversizeBytes = 3 * 1024 * 1024 + 1;
+    const oversizeBytes = MAX_FILE_SIZE_BYTES + 1;
     mockFs.stat.mockResolvedValue({ isFile: () => true, size: oversizeBytes });
     await handleAttachmentUpload({ taskId: TASK_ID, file: '/tmp/big.bin' });
     expect(mockOutput.printError).toHaveBeenCalledWith(
