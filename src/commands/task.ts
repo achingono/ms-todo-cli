@@ -258,11 +258,7 @@ export async function handleTaskSearch(keyword?: string): Promise<void> {
     }
 
     const tasks = await graph.searchTasks(normalized);
-    if (!tasks.length) {
-      printError(ErrorCodes.TASK_NOT_FOUND, `No tasks matched "${normalized}"`);
-      return;
-    }
-    printSuccess({ tasks });
+    printSuccess({ tasks, matchCount: tasks.length });
   } catch (err: unknown) {
     const e = err as { code?: string; message?: string };
     printError(e.code || ErrorCodes.GRAPH_ERROR, e.message || 'Unknown error');
