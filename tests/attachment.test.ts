@@ -23,7 +23,7 @@ jest.mock('fs', () => ({
 import * as graph from '../src/graph/client';
 import * as output from '../src/output';
 import { promises as fs } from 'fs';
-import { handleAttachmentUpload } from '../src/commands/attachment';
+import { handleAttachmentUpload, MAX_ATTACHMENT_SIZE_BYTES } from '../src/commands/attachment';
 
 const mockGraph = graph as jest.Mocked<typeof graph>;
 const mockOutput = output as jest.Mocked<typeof output>;
@@ -35,7 +35,6 @@ const mockFs = fs as unknown as {
 const TASK_ID = 'task-123';
 const LIST_ID = 'list-456';
 const foundTask = { task: { id: TASK_ID, title: 'Sample' }, listId: LIST_ID };
-const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -81,13 +80,13 @@ describe('handleAttachmentUpload', () => {
     );
   });
 
-  test('returns error when file exceeds 3 MB limit', async () => {
-    const oversizeBytes = MAX_FILE_SIZE_BYTES + 1;
+  test('returns error when file exceeds 3 MiB limit', async () => {
+    const oversizeBytes = MAX_ATTACHMENT_SIZE_BYTES + 1;
     mockFs.stat.mockResolvedValue({ isFile: () => true, size: oversizeBytes });
     await handleAttachmentUpload({ taskId: TASK_ID, file: '/tmp/big.bin' });
     expect(mockOutput.printError).toHaveBeenCalledWith(
       ErrorCodes.VALIDATION_ERROR,
-      'attachment must be 3 MB or smaller',
+      'attachment must be 3 MiB or smaller',
     );
   });
 

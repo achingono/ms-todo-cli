@@ -4,7 +4,7 @@ import * as graph from '../graph/client';
 import { printError, printSuccess } from '../output';
 import { ErrorCodes } from '../errors';
 
-const MAX_ATTACHMENT_SIZE_BYTES = 3 * 1024 * 1024; // Microsoft Graph simple attachment limit (3 MB)
+export const MAX_ATTACHMENT_SIZE_BYTES = 3 * 1024 * 1024; // Microsoft Graph simple attachment limit (3 MiB / 3,145,728 bytes)
 
 interface AttachmentOptions {
   taskId?: string;
@@ -47,7 +47,7 @@ export async function handleAttachmentUpload(options: AttachmentOptions): Promis
       return;
     }
     if (stats.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      printError(ErrorCodes.VALIDATION_ERROR, 'attachment must be 3 MB or smaller');
+      printError(ErrorCodes.VALIDATION_ERROR, 'attachment must be 3 MiB or smaller');
       return;
     }
 
