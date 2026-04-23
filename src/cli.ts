@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { handleAuthLogin, handleAuthStatus, handleAuthLogout, handleAuthPrintAccount } from './auth';
 import { handleListCreate, handleListList } from './commands/list';
-import { handleTaskCreate, handleTaskUpdate, handleTaskComplete, handleTaskList, handleTaskGet } from './commands/task';
+import { handleTaskCreate, handleTaskUpdate, handleTaskComplete, handleTaskList, handleTaskGet, handleTaskSearch } from './commands/task';
 import { handleStepList, handleStepCreate, handleStepUpdate, handleStepComplete, handleStepDelete } from './commands/step';
 import { handleGroupCreate, handleGroupList, handleGroupUpdate, handleGroupDelete } from './commands/group';
 import { printError } from './output';
@@ -100,6 +100,13 @@ taskCmd
   .requiredOption('--task-id <id>', 'Task ID')
   .option('--list-id <id>', 'List ID (skips list scan when provided)')
   .action((opts) => handleTaskGet(opts.taskId, opts.listId));
+
+taskCmd
+  .command('search')
+  .description('Search tasks across all lists by keyword')
+  .argument('[keyword]', 'Keyword to match in title or notes')
+  .option('-q, --query <keyword>', 'Keyword to match in title or notes')
+  .action((keyword, opts) => handleTaskSearch(opts.query || keyword));
 
 // Step commands (task checklist items)
 const stepCmd = program.command('step').description('Task step (checklist item) commands');

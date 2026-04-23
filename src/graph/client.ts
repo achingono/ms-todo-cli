@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { getAccessToken } from '../auth/authManager';
 import { ErrorCodes, AppError } from '../errors';
+import { sanitizeSearchTerm } from '../utils/search';
 import { TodoTask, TodoList, ChecklistItem, TodoListGroup } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
@@ -37,6 +38,9 @@ function createClient(): AxiosInstance {
   return client;
 }
 
+const MAX_CONCURRENT_SEARCH_REQUESTS = 5;
+const ODATA_TERM_PARAMETER = '@term';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapTask(item: any, listName?: string, listId?: string): TodoTask {
   return {
@@ -50,6 +54,42 @@ function mapTask(item: any, listName?: string, listId?: string): TodoTask {
     priority: item.importance,
     completedDateTime: item.completedDateTime?.dateTime,
   };
+}
+
+function buildTaskSearchFilter(): string {
+  return `contains(tolower(title),${ODATA_TERM_PARAMETER}) or contains(tolower(body/content),${ODATA_TERM_PARAMETER})`;
+}
+
+function buildTaskSearchParams(term: string): Record<string, string> {
+  const escaped = term.replace(/'/g, "''");
+  return {
+    $filter: buildTaskSearchFilter(),
+    $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
+    [ODATA_TERM_PARAMETER]: `'${escaped}'`,
+  };
+}
+
+async function fetchSearchTasksForList(
+  client: AxiosInstance,
+  list: TodoList,
+  params: Record<string, string>,
+): Promise<TodoTask[]> {
+  const tasks: TodoTask[] = [];
+  let nextUrl: string | undefined = `/me/todo/lists/${list.id}/tasks`;
+  let isFirstRequest = true;
+
+  while (nextUrl) {
+    const res: { data: { value?: unknown[]; '@odata.nextLink'?: string } } = await client.get(
+      nextUrl,
+      isFirstRequest ? { params } : undefined,
+    );
+    const items = res.data.value || [];
+    tasks.push(...items.map((item: unknown) => mapTask(item, list.displayName, list.id)));
+    nextUrl = res.data['@odata.nextLink'];
+    isFirstRequest = false;
+  }
+
+  return tasks;
 }
 
 export async function getListGroups(): Promise<TodoListGroup[]> {
@@ -80,9 +120,9 @@ export async function deleteListGroup(listGroupId: string): Promise<void> {
   await client.delete(`/me/todo/listGroups/${listGroupId}`);
 }
 
-export async function getLists(): Promise<TodoList[]> {
-  const client = createClient();
-  const res = await client.get('/me/todo/lists');
+export async function getLists(client?: AxiosInstance): Promise<TodoList[]> {
+  const activeClient = client ?? createClient();
+  const res = await activeClient.get('/me/todo/lists');
   return res.data.value;
 }
 
@@ -107,6 +147,30 @@ export async function getTasks(listId: string, listName?: string): Promise<TodoT
   const res = await client.get(`/me/todo/lists/${listId}/tasks`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (res.data.value || []).map((t: any) => mapTask(t, listName, listId));
+}
+
+export async function searchTasks(keyword: string): Promise<TodoTask[]> {
+  const client = createClient();
+  const normalized = sanitizeSearchTerm(keyword);
+  if (!normalized) {
+    return [];
+  }
+  const lists = await getLists(client);
+  const term = normalized.toLowerCase();
+  const params = buildTaskSearchParams(term);
+  const matches: TodoTask[] = [];
+
+  for (let i = 0; i < lists.length; i += MAX_CONCURRENT_SEARCH_REQUESTS) {
+    const batch = lists.slice(i, i + MAX_CONCURRENT_SEARCH_REQUESTS);
+    const results = await Promise.all(
+      batch.map(async (list) => {
+        return fetchSearchTasksForList(client, list, params);
+      }),
+    );
+    matches.push(...results.flat());
+  }
+
+  return matches;
 }
 
 /** Internal helper: fetch a single task without calling getLists(). */
