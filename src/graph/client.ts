@@ -7,6 +7,16 @@ const BASE_URL = 'https://graph.microsoft.com/v1.0';
 // Small batch size balances latency while reducing Graph API throttling risk.
 const TASK_FETCH_BATCH_SIZE = 3;
 
+function normalizeGraphUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  try {
+    const parsed = new URL(rawUrl, BASE_URL);
+    return parsed.pathname;
+  } catch {
+    return rawUrl.split('?')[0];
+  }
+}
+
 function createClient(): AxiosInstance {
   const client = axios.create({ baseURL: BASE_URL });
   client.interceptors.request.use(async (config) => {
@@ -24,7 +34,7 @@ function createClient(): AxiosInstance {
       if (status === 401 || status === 403) throw new AppError(ErrorCodes.AUTH_EXPIRED, 'Authentication expired or invalid');
       if (status === 404) {
         // Determine the missing resource type by examining the URL path.
-        const url: string = err.config?.url || '';
+        const url = normalizeGraphUrl(err.config?.url || '');
         if (/\/listGroups\/[^/]+/.test(url)) {
           throw new AppError(ErrorCodes.LIST_GROUP_NOT_FOUND, 'List group not found');
         }
