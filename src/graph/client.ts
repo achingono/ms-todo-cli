@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { getAccessToken } from '../auth/authManager';
 import { ErrorCodes, AppError } from '../errors';
 import { sanitizeSearchTerm } from '../utils/search';
-import { TodoTask, TodoList, ChecklistItem, TodoListGroup } from '../schema/types';
+import { TodoTask, TodoList, ChecklistItem, TaskAttachment, TodoListGroup } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
 // Small batch size balances latency while reducing Graph API throttling risk.
@@ -91,22 +91,20 @@ async function mapConcurrent<TInput, TOutput>(
   }
 
   const results: TOutput[] = new Array(items.length);
-  let nextIndex = 0;
+  const workQueue: Array<{ index: number; item: TInput }> = items.map((item, index) => ({ index, item }));
 
   async function runWorker(): Promise<void> {
-    while (true) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-
-      if (currentIndex >= items.length) {
+    while (workQueue.length > 0) {
+      const nextWorkItem = workQueue.pop();
+      if (!nextWorkItem) {
         return;
       }
 
-      results[currentIndex] = await worker(items[currentIndex]);
+      results[nextWorkItem.index] = await worker(nextWorkItem.item);
     }
   }
 
-  const workerCount = Math.min(concurrency, items.length);
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
   await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
   return results;
 }
@@ -151,7 +149,7 @@ async function fetchSearchTasksForList(
   let isFirstRequest = true;
 
   while (nextUrl) {
-    const res: { data: { value?: unknown[]; '@odata.nextLink'?: string } } = await client.get(
+    const res: AxiosResponse<ODataPage<GraphTask>> = await client.get(
       nextUrl,
       isFirstRequest ? { params } : undefined,
     );
@@ -355,12 +353,30 @@ export async function deleteChecklistItem(listId: string, taskId: string, checkl
   await client.delete(`/me/todo/lists/${listId}/tasks/${taskId}/checklistItems/${checklistItemId}`);
 }
 
+export async function uploadAttachment(
+  listId: string,
+  taskId: string,
+  attachment: { name: string; contentBytes: string; contentType?: string },
+): Promise<TaskAttachment> {
+  const client = createClient();
+  const payload = {
+    '@odata.type': '#microsoft.graph.fileAttachment',
+    name: attachment.name,
+    contentBytes: attachment.contentBytes,
+    contentType: attachment.contentType,
+  };
+  const res = await client.post(`/me/todo/lists/${listId}/tasks/${taskId}/attachments`, payload);
+  return {
+    id: res.data.id,
+    name: res.data.name,
+    size: res.data.size,
+    contentType: res.data.contentType,
+  };
+}
+
 export async function getTasksAcrossLists(): Promise<TodoTask[]> {
   const client = createClient();
-  const lists = await fetchPaged<TodoList, Pick<TodoList, 'id' | 'displayName'>>(client, '/me/todo/lists', (list) => ({
-    id: list.id,
-    displayName: list.displayName,
-  }));
+  const lists = await fetchPaged<TodoList, TodoList>(client, '/me/todo/lists', (list) => list);
   if (lists.length === 0) return [];
 
   const results = await mapConcurrent(lists, TASK_FETCH_BATCH_SIZE, (list) => {

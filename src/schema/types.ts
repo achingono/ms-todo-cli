@@ -33,3 +33,10 @@ export interface AuthAccount {
   name: string;
   tenantId: string;
 }
+
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  size?: number;
+  contentType?: string;
+}

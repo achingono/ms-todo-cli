@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 
-import { searchTasks } from '../src/graph/client';
+import { getLists, searchTasks } from '../src/graph/client';
 
 jest.mock('axios');
 jest.mock('../src/auth/authManager', () => ({
@@ -58,5 +58,33 @@ describe('searchTasks', () => {
 
     expect(params['@term']).toBe("'café résumé'");
     expect(params.$filter).toContain('@term');
+  });
+});
+
+describe('getLists', () => {
+  test('uses provided client when available', async () => {
+    const providedClient = {
+      get: jest.fn().mockResolvedValue({ data: { value: [{ id: 'list-42', displayName: 'Provided' }] } }),
+      interceptors: {
+        request: { use: jest.fn() },
+        response: { use: jest.fn() },
+      },
+    } as unknown as AxiosInstance;
+
+    const lists = await getLists(providedClient);
+
+    expect(lists).toEqual([{ id: 'list-42', displayName: 'Provided' }]);
+    expect(providedClient.get).toHaveBeenCalledWith('/me/todo/lists');
+    expect(mockAxios.create).not.toHaveBeenCalled();
+  });
+
+  test('creates a new client when none is provided', async () => {
+    mockGet.mockResolvedValueOnce({ data: { value: [{ id: 'list-1', displayName: 'Inbox' }] } });
+
+    const lists = await getLists();
+
+    expect(mockAxios.create).toHaveBeenCalledTimes(1);
+    expect(mockGet).toHaveBeenCalledWith('/me/todo/lists');
+    expect(lists).toEqual([{ id: 'list-1', displayName: 'Inbox' }]);
   });
 });

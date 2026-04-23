@@ -4,6 +4,7 @@ import { handleAuthLogin, handleAuthStatus, handleAuthLogout, handleAuthPrintAcc
 import { handleListCreate, handleListList } from './commands/list';
 import { handleTaskCreate, handleTaskUpdate, handleTaskComplete, handleTaskList, handleTaskGet, handleTaskSearch } from './commands/task';
 import { handleStepList, handleStepCreate, handleStepUpdate, handleStepComplete, handleStepDelete } from './commands/step';
+import { handleAttachmentUpload } from './commands/attachment';
 import { handleGroupCreate, handleGroupList, handleGroupUpdate, handleGroupDelete } from './commands/group';
 import { printError } from './output';
 import { ErrorCodes } from './errors';
@@ -101,6 +102,20 @@ taskCmd
   .requiredOption('--task-id <id>', 'Task ID')
   .option('--list-id <id>', 'List ID (skips list scan when provided)')
   .action((opts) => handleTaskGet(opts.taskId, opts.listId));
+
+taskCmd
+  .command('attach')
+  .description('Upload a file attachment to a task')
+  .requiredOption('--task-id <id>', 'Task ID')
+  .option('--list-id <id>', 'List ID (skips list scan when provided)')
+  .requiredOption('--file <path>', 'Path to the file to attach')
+  .option('--name <name>', 'Attachment file name (defaults to the file basename)')
+  .action((opts) => handleAttachmentUpload({
+    taskId: opts.taskId,
+    listId: opts.listId,
+    file: opts.file,
+    name: opts.name,
+  }));
 
 taskCmd
   .command('search')
