@@ -249,7 +249,7 @@ export async function handleTaskGet(taskId: string, listId?: string): Promise<vo
   }
 }
 
-export async function handleTaskSearch(keyword: string): Promise<void> {
+export async function handleTaskSearch(keyword?: string): Promise<void> {
   try {
     const normalized = sanitizeSearchTerm(keyword || '');
     if (!normalized) {
