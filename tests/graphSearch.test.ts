@@ -36,4 +36,27 @@ describe('searchTasks', () => {
     expect(params['@term']).toBe("'foo bar'");
     expect(params.$filter).toContain('@term');
   });
+
+  test('handles search terms that normalize to an empty string', async () => {
+    await expect(searchTasks('  !!!   ???  ')).resolves.toEqual([]);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  test('handles whitespace-only search terms', async () => {
+    await expect(searchTasks('     ')).resolves.toEqual([]);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  test('preserves and normalizes unicode search terms consistently', async () => {
+    mockGet.mockResolvedValueOnce({ data: { value: [{ id: 'list-1', displayName: 'Inbox' }] } });
+    mockGet.mockResolvedValueOnce({ data: { value: [] } });
+
+    await searchTasks('  Café   résumé  ');
+
+    const [, requestConfig] = mockGet.mock.calls[1];
+    const params = requestConfig?.params as Record<string, string>;
+
+    expect(params['@term']).toBe("'café résumé'");
+    expect(params.$filter).toContain('@term');
+  });
 });
