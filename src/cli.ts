@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { handleAuthLogin, handleAuthStatus, handleAuthLogout, handleAuthPrintAccount } from './auth';
 import { handleListCreate, handleListList } from './commands/list';
-import { handleTaskCreate, handleTaskUpdate, handleTaskComplete, handleTaskList, handleTaskGet } from './commands/task';
+import { handleTaskCreate, handleTaskUpdate, handleTaskComplete, handleTaskList, handleTaskGet, handleTaskSearch } from './commands/task';
 import { handleStepList, handleStepCreate, handleStepUpdate, handleStepComplete, handleStepDelete } from './commands/step';
 import { handleAttachmentUpload } from './commands/attachment';
 import { handleGroupCreate, handleGroupList, handleGroupUpdate, handleGroupDelete } from './commands/group';
@@ -93,7 +93,8 @@ taskCmd
   .description('List tasks in a list')
   .option('--list <name>', 'List name')
   .option('--list-id <id>', 'List ID')
-  .action((opts) => handleTaskList(opts.list, { listId: opts.listId }));
+  .option('--all-lists', 'List tasks across all lists')
+  .action((opts) => handleTaskList(opts.list, { listId: opts.listId, allLists: opts.allLists }));
 
 taskCmd
   .command('get')
@@ -115,6 +116,13 @@ taskCmd
     file: opts.file,
     name: opts.name,
   }));
+
+taskCmd
+  .command('search')
+  .description('Search tasks across all lists by keyword')
+  .argument('[keyword]', 'Keyword to match in title or notes')
+  .option('-q, --query <keyword>', 'Keyword to match in title or notes')
+  .action((keyword, opts) => handleTaskSearch(opts.query || keyword));
 
 // Step commands (task checklist items)
 const stepCmd = program.command('step').description('Task step (checklist item) commands');

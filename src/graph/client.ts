@@ -1,9 +1,23 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { getAccessToken } from '../auth/authManager';
 import { ErrorCodes, AppError } from '../errors';
+import { sanitizeSearchTerm } from '../utils/search';
 import { TodoTask, TodoList, ChecklistItem, TaskAttachment, TodoListGroup } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
+// Small batch size balances latency while reducing Graph API throttling risk.
+const TASK_FETCH_BATCH_SIZE = 3;
+
+function normalizeGraphUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  try {
+    const parsed = new URL(rawUrl, BASE_URL);
+    return parsed.pathname;
+  } catch {
+    const withoutFragment = rawUrl.split('#')[0];
+    return withoutFragment.split('?')[0];
+  }
+}
 
 function createClient(): AxiosInstance {
   const client = axios.create({ baseURL: BASE_URL });
@@ -22,7 +36,7 @@ function createClient(): AxiosInstance {
       if (status === 401 || status === 403) throw new AppError(ErrorCodes.AUTH_EXPIRED, 'Authentication expired or invalid');
       if (status === 404) {
         // Determine the missing resource type by examining the URL path.
-        const url: string = err.config?.url || '';
+        const url = normalizeGraphUrl(err.config?.url || '');
         if (/\/listGroups\/[^/]+/.test(url)) {
           throw new AppError(ErrorCodes.LIST_GROUP_NOT_FOUND, 'List group not found');
         }
@@ -37,8 +51,20 @@ function createClient(): AxiosInstance {
   return client;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTask(item: any, listName?: string, listId?: string): TodoTask {
+type GraphTask = {
+  id: string;
+  title: string;
+  status?: string;
+  body?: { content?: string };
+  dueDateTime?: { dateTime?: string };
+  importance?: string;
+  completedDateTime?: { dateTime?: string };
+};
+
+const MAX_CONCURRENT_SEARCH_REQUESTS = 5;
+const ODATA_TERM_PARAMETER = '@term';
+
+function mapTask(item: GraphTask, listName?: string, listId?: string): TodoTask {
   return {
     id: item.id,
     title: item.title,
@@ -52,10 +78,93 @@ function mapTask(item: any, listName?: string, listId?: string): TodoTask {
   };
 }
 
+type ODataPage<T> = { value?: T[]; '@odata.nextLink'?: string };
+type PageItemMapper<TInput, TOutput> = (item: TInput) => TOutput;
+
+async function mapConcurrent<TInput, TOutput>(
+  items: TInput[],
+  concurrency: number,
+  worker: (item: TInput) => Promise<TOutput>,
+): Promise<TOutput[]> {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const results: TOutput[] = new Array(items.length);
+  const workQueue: Array<{ index: number; item: TInput }> = items.map((item, index) => ({ index, item }));
+
+  async function runWorker(): Promise<void> {
+    while (workQueue.length > 0) {
+      const nextWorkItem = workQueue.pop();
+      if (!nextWorkItem) {
+        return;
+      }
+
+      results[nextWorkItem.index] = await worker(nextWorkItem.item);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return results;
+}
+
+async function fetchPaged<TInput, TOutput>(
+  client: AxiosInstance,
+  url: string,
+  mapItem: PageItemMapper<TInput, TOutput>,
+): Promise<TOutput[]> {
+  const results: TOutput[] = [];
+  let nextUrl: string | undefined = url;
+  while (nextUrl) {
+    const res: AxiosResponse<ODataPage<TInput>> = await client.get(nextUrl);
+    for (const item of res.data.value || []) {
+      results.push(mapItem(item));
+    }
+    nextUrl = res.data['@odata.nextLink'];
+  }
+  return results;
+}
+
+function buildTaskSearchFilter(): string {
+  return `contains(tolower(title),${ODATA_TERM_PARAMETER}) or contains(tolower(body/content),${ODATA_TERM_PARAMETER})`;
+}
+
+function buildTaskSearchParams(term: string): Record<string, string> {
+  const escaped = term.replace(/'/g, "''");
+  return {
+    $filter: buildTaskSearchFilter(),
+    $select: 'id,title,status,body,dueDateTime,importance,completedDateTime',
+    [ODATA_TERM_PARAMETER]: `'${escaped}'`,
+  };
+}
+
+async function fetchSearchTasksForList(
+  client: AxiosInstance,
+  list: TodoList,
+  params: Record<string, string>,
+): Promise<TodoTask[]> {
+  const tasks: TodoTask[] = [];
+  let nextUrl: string | undefined = `/me/todo/lists/${list.id}/tasks`;
+  let isFirstRequest = true;
+
+  while (nextUrl) {
+    const res: AxiosResponse<ODataPage<GraphTask>> = await client.get(
+      nextUrl,
+      isFirstRequest ? { params } : undefined,
+    );
+    const items = res.data.value || [];
+    tasks.push(...items.map((item) => mapTask(item as GraphTask, list.displayName, list.id)));
+    nextUrl = res.data['@odata.nextLink'];
+    isFirstRequest = false;
+  }
+
+  return tasks;
+}
+
 export async function getListGroups(): Promise<TodoListGroup[]> {
   const client = createClient();
-  const res = await client.get('/me/todo/listGroups');
-  return res.data.value;
+  return fetchPaged<TodoListGroup, TodoListGroup>(client, '/me/todo/listGroups', (group) => group);
 }
 
 export async function getListGroupByName(name: string): Promise<TodoListGroup | null> {
@@ -80,9 +189,9 @@ export async function deleteListGroup(listGroupId: string): Promise<void> {
   await client.delete(`/me/todo/listGroups/${listGroupId}`);
 }
 
-export async function getLists(): Promise<TodoList[]> {
-  const client = createClient();
-  const res = await client.get('/me/todo/lists');
+export async function getLists(client?: AxiosInstance): Promise<TodoList[]> {
+  const activeClient = client ?? createClient();
+  const res = await activeClient.get('/me/todo/lists');
   return res.data.value;
 }
 
@@ -107,6 +216,23 @@ export async function getTasks(listId: string, listName?: string): Promise<TodoT
   const res = await client.get(`/me/todo/lists/${listId}/tasks`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (res.data.value || []).map((t: any) => mapTask(t, listName, listId));
+}
+
+export async function searchTasks(keyword: string): Promise<TodoTask[]> {
+  const client = createClient();
+  const normalized = sanitizeSearchTerm(keyword);
+  if (!normalized) {
+    return [];
+  }
+  const lists = await getLists(client);
+  const term = normalized.toLowerCase();
+  const params = buildTaskSearchParams(term);
+
+  const results = await mapConcurrent(lists, MAX_CONCURRENT_SEARCH_REQUESTS, (list) => {
+    return fetchSearchTasksForList(client, list, params);
+  });
+
+  return results.flat();
 }
 
 /** Internal helper: fetch a single task without calling getLists(). */
@@ -246,4 +372,18 @@ export async function uploadAttachment(
     size: res.data.size,
     contentType: res.data.contentType,
   };
+}
+
+export async function getTasksAcrossLists(): Promise<TodoTask[]> {
+  const client = createClient();
+  const lists = await fetchPaged<TodoList, TodoList>(client, '/me/todo/lists', (list) => list);
+  if (lists.length === 0) return [];
+
+  const results = await mapConcurrent(lists, TASK_FETCH_BATCH_SIZE, (list) => {
+    return fetchPaged<GraphTask, TodoTask>(client, `/me/todo/lists/${list.id}/tasks`, (task) =>
+      mapTask(task, list.displayName, list.id),
+    );
+  });
+
+  return results.flat();
 }

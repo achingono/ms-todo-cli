@@ -1,5 +1,6 @@
 import * as readline from 'readline';
 import * as graph from '../graph/client';
+import { sanitizeSearchTerm } from '../utils/search';
 import { printSuccess, printError } from '../output';
 import { ErrorCodes, AppError } from '../errors';
 
@@ -205,8 +206,21 @@ export async function handleTaskComplete(taskId: string, listId?: string): Promi
   }
 }
 
-export async function handleTaskList(listName: string, options: { listId?: string }): Promise<void> {
+export async function handleTaskList(
+  listName: string | undefined,
+  options: { listId?: string; allLists?: boolean },
+): Promise<void> {
   try {
+    if (options.allLists && (listName || options.listId)) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'cannot combine --all-lists with --list or --list-id');
+      return;
+    }
+    if (options.allLists) {
+      const tasks = await graph.getTasksAcrossLists();
+      printSuccess({ tasks });
+      return;
+    }
+
     let listId = options.listId;
     let resolvedListName: string | undefined;
     if (!listId && listName) {
@@ -242,6 +256,31 @@ export async function handleTaskGet(taskId: string, listId?: string): Promise<vo
       return;
     }
     printSuccess({ task: found.task });
+  } catch (err: unknown) {
+    const e = err as { code?: string; message?: string };
+    printError(e.code || ErrorCodes.GRAPH_ERROR, e.message || 'Unknown error');
+  }
+}
+
+export async function handleTaskSearch(keyword?: string): Promise<void> {
+  try {
+    if (keyword === undefined || keyword.trim() === '') {
+      printError(ErrorCodes.VALIDATION_ERROR, 'keyword is required');
+      return;
+    }
+
+    const normalized = sanitizeSearchTerm(keyword);
+    if (!normalized) {
+      printError(ErrorCodes.VALIDATION_ERROR, 'keyword is required');
+      return;
+    }
+
+    const tasks = await graph.searchTasks(normalized);
+    if (tasks.length === 0) {
+      printError(ErrorCodes.TASK_NOT_FOUND, `No tasks matched "${normalized}"`);
+      return;
+    }
+    printSuccess({ tasks });
   } catch (err: unknown) {
     const e = err as { code?: string; message?: string };
     printError(e.code || ErrorCodes.GRAPH_ERROR, e.message || 'Unknown error');

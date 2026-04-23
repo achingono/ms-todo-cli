@@ -168,6 +168,12 @@ ms-todo-cli task list --list "Shopping"
 ms-todo-cli task list --list-id "LIST_ID"
 ```
 
+### List tasks across all lists
+
+```bash
+ms-todo-cli task list --all-lists
+```
+
 ### Get a single task
 
 ```bash
@@ -185,6 +191,14 @@ ms-todo-cli task attach --task-id "TASK_ID" --list-id "LIST_ID" --file ./notes.t
 ```
 
 Attachments use Microsoft Graph simple attachments (max 3 MiB / 3,145,728 bytes per file).
+
+### Search tasks across all lists by keyword
+
+```bash
+ms-todo-cli task search --query "keyword"
+# Positional keyword alias:
+ms-todo-cli task search "keyword"
+```
 
 ## Task Step Commands
 
