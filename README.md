@@ -184,7 +184,7 @@ ms-todo-cli task attach --task-id "TASK_ID" --file ./notes.txt
 ms-todo-cli task attach --task-id "TASK_ID" --list-id "LIST_ID" --file ./notes.txt --name task-notes.txt
 ```
 
-Attachments use Microsoft Graph simple attachments (max 3 MB per file).
+Attachments use Microsoft Graph simple attachments (max 3 MiB / 3,145,728 bytes per file).
 
 ## Task Step Commands
 
