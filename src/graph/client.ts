@@ -13,7 +13,8 @@ function normalizeGraphUrl(rawUrl: string): string {
     const parsed = new URL(rawUrl, BASE_URL);
     return parsed.pathname;
   } catch {
-    return rawUrl.split('?')[0];
+    const withoutFragment = rawUrl.split('#')[0];
+    return withoutFragment.split('?')[0];
   }
 }
 
