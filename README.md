@@ -182,6 +182,14 @@ ms-todo-cli task get --task-id "TASK_ID"
 ms-todo-cli task get --task-id "TASK_ID" --list-id "LIST_ID"
 ```
 
+### Search tasks across all lists by keyword
+
+```bash
+ms-todo-cli task search --query "keyword"
+# Positional keyword alias:
+ms-todo-cli task search "keyword"
+```
+
 ## Task Step Commands
 
 Microsoft To Do supports checklist items (steps) within a task.
