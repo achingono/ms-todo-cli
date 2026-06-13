@@ -9,41 +9,8 @@ const BETA_BASE_URL = 'https://graph.microsoft.com/beta';
 // Small batch size balances latency while reducing Graph API throttling risk.
 const TASK_FETCH_BATCH_SIZE = 3;
 
-function createBetaClient(): AxiosInstance {
-  const client = axios.create({ baseURL: BETA_BASE_URL });
-  client.interceptors.request.use(async (config) => {
-    const token = await getAccessToken();
-    config.headers = config.headers || {};
-    config.headers['Authorization'] = `Bearer ${token}`;
-    config.headers['Content-Type'] = 'application/json';
-    return config;
-  });
-  client.interceptors.response.use(
-    (res) => res,
-    (err) => {
-      const status = err.response?.status;
-      if (status === 429) throw new AppError(ErrorCodes.RATE_LIMITED, 'Rate limited by Microsoft Graph API');
-      if (status === 401 || status === 403) throw new AppError(ErrorCodes.AUTH_EXPIRED, 'Authentication expired or invalid');
-      if (status === 404) throw new AppError(ErrorCodes.GRAPH_ERROR, 'Resource not found');
-      throw new AppError(ErrorCodes.GRAPH_ERROR, err.response?.data?.error?.message || err.message);
-    }
-  );
-  return client;
-}
-
-function normalizeGraphUrl(rawUrl: string): string {
-  if (!rawUrl) return '';
-  try {
-    const parsed = new URL(rawUrl, BASE_URL);
-    return parsed.pathname;
-  } catch {
-    const withoutFragment = rawUrl.split('#')[0];
-    return withoutFragment.split('?')[0];
-  }
-}
-
-function createClient(): AxiosInstance {
-  const client = axios.create({ baseURL: BASE_URL });
+function createGraphClient(baseURL: string): AxiosInstance {
+  const client = axios.create({ baseURL });
   client.interceptors.request.use(async (config) => {
     const token = await getAccessToken();
     config.headers = config.headers || {};
@@ -58,20 +25,42 @@ function createClient(): AxiosInstance {
       if (status === 429) throw new AppError(ErrorCodes.RATE_LIMITED, 'Rate limited by Microsoft Graph API');
       if (status === 401 || status === 403) throw new AppError(ErrorCodes.AUTH_EXPIRED, 'Authentication expired or invalid');
       if (status === 404) {
-        // Determine the missing resource type by examining the URL path.
-        const url = normalizeGraphUrl(err.config?.url || '');
-        if (/\/listGroups\/[^/]+/.test(url)) {
-          throw new AppError(ErrorCodes.LIST_GROUP_NOT_FOUND, 'List group not found');
-        }
-        if (/\/lists\/[^/]+(?:\/tasks)?$/.test(url)) {
-          throw new AppError(ErrorCodes.LIST_NOT_FOUND, 'List not found');
-        }
-        throw new AppError(ErrorCodes.TASK_NOT_FOUND, 'Resource not found');
+        const url = normalizeGraphUrl(err.config?.url || '', baseURL);
+        throw mapNotFoundError(url);
       }
       throw new AppError(ErrorCodes.GRAPH_ERROR, err.response?.data?.error?.message || err.message);
     }
   );
   return client;
+}
+
+function normalizeGraphUrl(rawUrl: string, baseUrl: string = BASE_URL): string {
+  if (!rawUrl) return '';
+  try {
+    const parsed = new URL(rawUrl, baseUrl);
+    return parsed.pathname;
+  } catch {
+    const withoutFragment = rawUrl.split('#')[0];
+    return withoutFragment.split('?')[0];
+  }
+}
+
+function mapNotFoundError(url: string): AppError {
+  if (/\/taskGroups\/[^/]+/.test(url)) {
+    return new AppError(ErrorCodes.LIST_GROUP_NOT_FOUND, 'List group not found');
+  }
+  if (/\/lists\/[^/]+(?:\/tasks)?$/.test(url)) {
+    return new AppError(ErrorCodes.LIST_NOT_FOUND, 'List not found');
+  }
+  return new AppError(ErrorCodes.TASK_NOT_FOUND, 'Resource not found');
+}
+
+function createBetaClient(): AxiosInstance {
+  return createGraphClient(BETA_BASE_URL);
+}
+
+function createClient(): AxiosInstance {
+  return createGraphClient(BASE_URL);
 }
 
 type GraphTask = {
@@ -199,8 +188,7 @@ function mapOutlookGroup(g: OutlookTaskGroup): TodoListGroup {
 
 export async function getListGroups(): Promise<TodoListGroup[]> {
   const client = createBetaClient();
-  const res = await client.get('/me/outlook/taskGroups');
-  return (res.data.value || []).map(mapOutlookGroup);
+  return fetchPaged<OutlookTaskGroup, TodoListGroup>(client, '/me/outlook/taskGroups', mapOutlookGroup);
 }
 
 export async function getListGroupByName(name: string): Promise<TodoListGroup | null> {
@@ -215,8 +203,11 @@ export async function createListGroup(displayName: string): Promise<TodoListGrou
 }
 
 export async function updateListGroup(listGroupId: string, updates: { displayName?: string }): Promise<TodoListGroup> {
+  if (!updates.displayName?.trim()) {
+    throw new AppError(ErrorCodes.VALIDATION_ERROR, 'displayName is required');
+  }
   const client = createBetaClient();
-  const res = await client.patch(`/me/outlook/taskGroups/${listGroupId}`, { name: updates.displayName });
+  const res = await client.patch(`/me/outlook/taskGroups/${listGroupId}`, { name: updates.displayName.trim() });
   return mapOutlookGroup(res.data);
 }
 
