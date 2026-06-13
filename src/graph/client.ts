@@ -394,20 +394,57 @@ export async function uploadAttachment(
   taskId: string,
   attachment: { name: string; contentBytes: string; contentType?: string },
 ): Promise<TaskAttachment> {
-  const client = createClient();
-  const payload = {
-    '@odata.type': '#microsoft.graph.fileAttachment',
-    name: attachment.name,
-    contentBytes: attachment.contentBytes,
-    contentType: attachment.contentType,
-  };
-  const res = await client.post(`/me/todo/lists/${listId}/tasks/${taskId}/attachments`, payload);
-  return {
-    id: res.data.id,
-    name: res.data.name,
-    size: res.data.size,
-    contentType: res.data.contentType,
-  };
+  const betaClient = createBetaClient();
+  const contentBytes = Buffer.from(attachment.contentBytes, 'base64');
+  const fileSize = contentBytes.length;
+
+  const sessionRes = await betaClient.post(
+    `/me/todo/lists/${listId}/tasks/${taskId}/attachments/createUploadSession`,
+    {
+      attachmentInfo: {
+        attachmentType: 'file',
+        name: attachment.name,
+        size: fileSize,
+      },
+    }
+  );
+
+  const uploadUrl = sessionRes.data.uploadUrl;
+
+  const CHUNK_SIZE = 4 * 1024 * 1024;
+  let offset = 0;
+
+  while (offset < fileSize) {
+    const chunkEnd = Math.min(offset + CHUNK_SIZE, fileSize);
+    const chunk = contentBytes.slice(offset, chunkEnd);
+
+    const uploadRes = await axios.put(
+      `${uploadUrl}/content`,
+      chunk,
+      {
+        headers: {
+          Authorization: `Bearer ${await getAccessToken()}`,
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': chunk.length,
+          'Content-Range': `bytes ${offset}-${chunkEnd - 1}/${fileSize}`,
+        },
+      }
+    );
+
+    if (uploadRes.status === 201 && uploadRes.headers.location) {
+      const attachmentId = uploadRes.headers.location.split('/').pop();
+      return {
+        id: attachmentId || '',
+        name: attachment.name,
+        size: fileSize,
+        contentType: attachment.contentType,
+      };
+    }
+
+    offset = chunkEnd;
+  }
+
+  throw new AppError(ErrorCodes.GRAPH_ERROR, 'Failed to upload attachment');
 }
 
 export async function getTasksAcrossLists(): Promise<TodoTask[]> {
