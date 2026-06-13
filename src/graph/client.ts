@@ -5,8 +5,31 @@ import { sanitizeSearchTerm } from '../utils/search';
 import { TodoTask, TodoList, ChecklistItem, TaskAttachment, TodoListGroup } from '../schema/types';
 
 const BASE_URL = 'https://graph.microsoft.com/v1.0';
+const BETA_BASE_URL = 'https://graph.microsoft.com/beta';
 // Small batch size balances latency while reducing Graph API throttling risk.
 const TASK_FETCH_BATCH_SIZE = 3;
+
+function createBetaClient(): AxiosInstance {
+  const client = axios.create({ baseURL: BETA_BASE_URL });
+  client.interceptors.request.use(async (config) => {
+    const token = await getAccessToken();
+    config.headers = config.headers || {};
+    config.headers['Authorization'] = `Bearer ${token}`;
+    config.headers['Content-Type'] = 'application/json';
+    return config;
+  });
+  client.interceptors.response.use(
+    (res) => res,
+    (err) => {
+      const status = err.response?.status;
+      if (status === 429) throw new AppError(ErrorCodes.RATE_LIMITED, 'Rate limited by Microsoft Graph API');
+      if (status === 401 || status === 403) throw new AppError(ErrorCodes.AUTH_EXPIRED, 'Authentication expired or invalid');
+      if (status === 404) throw new AppError(ErrorCodes.GRAPH_ERROR, 'Resource not found');
+      throw new AppError(ErrorCodes.GRAPH_ERROR, err.response?.data?.error?.message || err.message);
+    }
+  );
+  return client;
+}
 
 function normalizeGraphUrl(rawUrl: string): string {
   if (!rawUrl) return '';
@@ -162,9 +185,22 @@ async function fetchSearchTasksForList(
   return tasks;
 }
 
+interface OutlookTaskGroup {
+  id: string;
+  name: string;
+  isDefaultGroup: boolean;
+  groupKey: string;
+  changeKey: string;
+}
+
+function mapOutlookGroup(g: OutlookTaskGroup): TodoListGroup {
+  return { id: g.id, displayName: g.name };
+}
+
 export async function getListGroups(): Promise<TodoListGroup[]> {
-  const client = createClient();
-  return fetchPaged<TodoListGroup, TodoListGroup>(client, '/me/todo/listGroups', (group) => group);
+  const client = createBetaClient();
+  const res = await client.get('/me/outlook/taskGroups');
+  return (res.data.value || []).map(mapOutlookGroup);
 }
 
 export async function getListGroupByName(name: string): Promise<TodoListGroup | null> {
@@ -173,20 +209,20 @@ export async function getListGroupByName(name: string): Promise<TodoListGroup | 
 }
 
 export async function createListGroup(displayName: string): Promise<TodoListGroup> {
-  const client = createClient();
-  const res = await client.post('/me/todo/listGroups', { displayName });
-  return res.data;
+  const client = createBetaClient();
+  const res = await client.post('/me/outlook/taskGroups', { name: displayName });
+  return mapOutlookGroup(res.data);
 }
 
 export async function updateListGroup(listGroupId: string, updates: { displayName?: string }): Promise<TodoListGroup> {
-  const client = createClient();
-  const res = await client.patch(`/me/todo/listGroups/${listGroupId}`, updates);
-  return res.data;
+  const client = createBetaClient();
+  const res = await client.patch(`/me/outlook/taskGroups/${listGroupId}`, { name: updates.displayName });
+  return mapOutlookGroup(res.data);
 }
 
 export async function deleteListGroup(listGroupId: string): Promise<void> {
-  const client = createClient();
-  await client.delete(`/me/todo/listGroups/${listGroupId}`);
+  const client = createBetaClient();
+  await client.delete(`/me/outlook/taskGroups/${listGroupId}`);
 }
 
 export async function getLists(client?: AxiosInstance): Promise<TodoList[]> {

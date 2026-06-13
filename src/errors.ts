@@ -7,6 +7,7 @@ export const ErrorCodes = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   GRAPH_ERROR: 'GRAPH_ERROR',
   RATE_LIMITED: 'RATE_LIMITED',
+  NOT_SUPPORTED: 'NOT_SUPPORTED',
 } as const;
 
 export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes];
